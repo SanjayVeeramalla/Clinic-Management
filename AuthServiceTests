@@ -1,0 +1,335 @@
+using Moq;
+using NUnit.Framework;
+using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using ClinicManagement.API.DTOs.Auth;
+using ClinicManagement.API.DTOs.Patient;
+using ClinicManagement.API.Helpers;
+using ClinicManagement.API.Repositories.Interfaces;
+using ClinicManagement.API.Services;
+
+namespace ClinicManagement.Tests.Services;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AuthServiceTests  (11 tests)
+// Tests: Register, Login, RefreshToken, Logout
+// ─────────────────────────────────────────────────────────────────────────────
+[TestFixture]
+public class AuthServiceTests
+{
+    private Mock<IAuthRepository>    _authRepo    = null!;
+    private Mock<IPatientRepository> _patientRepo = null!;
+    private Mock<ILogger<AuthService>> _logger    = null!;
+    private JwtHelper   _jwtHelper = null!;
+    private AuthService _sut       = null!;
+
+    // ── Setup ─────────────────────────────────────────────────────────────────
+    [SetUp]
+    public void SetUp()
+    {
+        _authRepo    = new Mock<IAuthRepository>();
+        _patientRepo = new Mock<IPatientRepository>();
+        _logger      = new Mock<ILogger<AuthService>>();
+
+        // In-memory config so JwtHelper can generate real tokens without appsettings
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["JwtSettings:SecretKey"]                = "TestSuperSecretKeyMustBe32CharsMin!",
+                ["JwtSettings:Issuer"]                   = "TestIssuer",
+                ["JwtSettings:Audience"]                 = "TestAudience",
+                ["JwtSettings:AccessTokenExpiryMinutes"] = "60",
+                ["JwtSettings:RefreshTokenExpiryDays"]   = "7"
+            })
+            .Build();
+
+        _jwtHelper = new JwtHelper(config);
+        _sut = new AuthService(_authRepo.Object, _patientRepo.Object, _jwtHelper, _logger.Object);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // REGISTER
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Happy path: Patient registers, gets access + refresh tokens back")]
+    public async Task Register_ValidPatient_ReturnsTokensAndUserInfo()
+    {
+        // Arrange
+        var dto = new RegisterRequestDto
+        {
+            FullName = "Jay Patel", Email = "jay@test.com",
+            Password = "Test@123",  Role  = "Patient"
+        };
+
+        _authRepo.Setup(r => r.RegisterUserAsync(It.IsAny<RegisterRequestDto>(), It.IsAny<string>()))
+                 .ReturnsAsync((5, "User registered successfully"));
+
+        _patientRepo.Setup(r => r.CreatePatientAsync(5, null))
+                    .ReturnsAsync((1, "Patient profile created"));
+
+        _authRepo.Setup(r => r.GetUserByIdAsync(5))
+                 .ReturnsAsync(new UserInfoDto { UserId = 5, FullName = "Jay Patel", Email = "jay@test.com", Role = "Patient" });
+
+        _authRepo.Setup(r => r.SaveRefreshTokenAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<DateTime>()))
+                 .Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _sut.RegisterAsync(dto);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().NotBeNull();
+        result.Data!.AccessToken.Should().NotBeNullOrEmpty();
+        result.Data.RefreshToken.Should().NotBeNullOrEmpty();
+        result.Data.User.Email.Should().Be("jay@test.com");
+        result.Data.User.Role.Should().Be("Patient");
+    }
+
+    [Test]
+    [Description("Duplicate email: RegisterUser SP returns -1, service surfaces the error")]
+    public async Task Register_DuplicateEmail_ReturnsFail()
+    {
+        // Arrange
+        var dto = new RegisterRequestDto
+        {
+            FullName = "Jay Patel", Email = "existing@test.com",
+            Password = "Test@123",  Role  = "Patient"
+        };
+
+        _authRepo.Setup(r => r.RegisterUserAsync(It.IsAny<RegisterRequestDto>(), It.IsAny<string>()))
+                 .ReturnsAsync((-1, "An account with this email already exists"));
+
+        // Act
+        var result = await _sut.RegisterAsync(dto);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("email");
+        result.Data.Should().BeNull();
+    }
+
+    [Test]
+    [Description("Doctor registration must NOT create a patient profile row")]
+    public async Task Register_DoctorRole_DoesNotCreatePatientProfile()
+    {
+        // Arrange
+        var dto = new RegisterRequestDto
+        {
+            FullName = "Dr. Smith", Email = "doc@test.com",
+            Password = "Test@123",  Role  = "Doctor"
+        };
+
+        _authRepo.Setup(r => r.RegisterUserAsync(It.IsAny<RegisterRequestDto>(), It.IsAny<string>()))
+                 .ReturnsAsync((10, "User registered successfully"));
+
+        _authRepo.Setup(r => r.GetUserByIdAsync(10))
+                 .ReturnsAsync(new UserInfoDto { UserId = 10, FullName = "Dr. Smith", Email = "doc@test.com", Role = "Doctor" });
+
+        _authRepo.Setup(r => r.SaveRefreshTokenAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<DateTime>()))
+                 .Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _sut.RegisterAsync(dto);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        // Patient repo CreatePatientAsync must NEVER be called for Doctor role
+        _patientRepo.Verify(r => r.CreatePatientAsync(It.IsAny<int>(), It.IsAny<UpdatePatientProfileDto>()), Times.Never);
+    }
+
+    [Test]
+    [Description("Password must be BCrypt hashed before being sent to the repository")]
+    public async Task Register_PasswordIsBcryptHashed_NeverStoredAsPlaintext()
+    {
+        // Arrange
+        const string plainPassword = "MySecret@123";
+        string? capturedHash = null;
+
+        var dto = new RegisterRequestDto
+        {
+            FullName = "Test User", Email = "hash@test.com",
+            Password = plainPassword, Role = "Patient"
+        };
+
+        _authRepo.Setup(r => r.RegisterUserAsync(It.IsAny<RegisterRequestDto>(), It.IsAny<string>()))
+                 .Callback<RegisterRequestDto, string>((_, hash) => capturedHash = hash)
+                 .ReturnsAsync((1, "User registered successfully"));
+
+        _patientRepo.Setup(r => r.CreatePatientAsync(1, null)).ReturnsAsync((1, "ok"));
+        _authRepo.Setup(r => r.GetUserByIdAsync(1))
+                 .ReturnsAsync(new UserInfoDto { UserId = 1, Email = dto.Email, Role = "Patient", FullName = dto.FullName });
+        _authRepo.Setup(r => r.SaveRefreshTokenAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<DateTime>()))
+                 .Returns(Task.CompletedTask);
+
+        // Act
+        await _sut.RegisterAsync(dto);
+
+        // Assert
+        capturedHash.Should().NotBeNull();
+        capturedHash.Should().NotBe(plainPassword);                              // never stored as plain text
+        BCrypt.Net.BCrypt.Verify(plainPassword, capturedHash).Should().BeTrue(); // hash is valid BCrypt
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // LOGIN
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Happy path: correct credentials return access + refresh token")]
+    public async Task Login_CorrectCredentials_ReturnsTokens()
+    {
+        // Arrange
+        const string password = "Test@123";
+        var hash = BCrypt.Net.BCrypt.HashPassword(password);
+        var dto  = new LoginRequestDto { Email = "jay@test.com", Password = password };
+
+        _authRepo.Setup(r => r.GetPasswordHashAsync(dto.Email)).ReturnsAsync(hash);
+        _authRepo.Setup(r => r.GetUserByEmailAsync(dto.Email))
+                 .ReturnsAsync(new UserInfoDto { UserId = 1, Email = dto.Email, Role = "Patient", FullName = "Jay" });
+        _authRepo.Setup(r => r.SaveRefreshTokenAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<DateTime>()))
+                 .Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _sut.LoginAsync(dto);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.AccessToken.Should().NotBeNullOrEmpty();
+        result.Data.RefreshToken.Should().NotBeNullOrEmpty();
+        result.Data.User.Email.Should().Be(dto.Email);
+    }
+
+    [Test]
+    [Description("Wrong password: BCrypt verify fails, no token issued")]
+    public async Task Login_WrongPassword_ReturnsFail_NoTokenIssued()
+    {
+        // Arrange
+        var hash = BCrypt.Net.BCrypt.HashPassword("CorrectPassword");
+        var dto  = new LoginRequestDto { Email = "jay@test.com", Password = "WrongPassword" };
+
+        _authRepo.Setup(r => r.GetPasswordHashAsync(dto.Email)).ReturnsAsync(hash);
+
+        // Act
+        var result = await _sut.LoginAsync(dto);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Invalid");
+        // SaveRefreshToken must NEVER be called when login fails
+        _authRepo.Verify(r => r.SaveRefreshTokenAsync(
+            It.IsAny<int>(), It.IsAny<string>(), It.IsAny<DateTime>()), Times.Never);
+    }
+
+    [Test]
+    [Description("Non-existent email: GetPasswordHash returns null, service returns fail")]
+    public async Task Login_NonExistentEmail_ReturnsFail()
+    {
+        // Arrange
+        _authRepo.Setup(r => r.GetPasswordHashAsync(It.IsAny<string>()))
+                 .ReturnsAsync((string?)null);
+
+        // Act
+        var result = await _sut.LoginAsync(new LoginRequestDto { Email = "ghost@test.com", Password = "pass" });
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Invalid");
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // REFRESH TOKEN
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Valid non-revoked token: old token revoked, new tokens issued")]
+    public async Task RefreshToken_ValidToken_RevokesOldIssuesNew()
+    {
+        // Arrange
+        const string oldToken = "valid_refresh_token_abc";
+
+        _authRepo.Setup(r => r.GetRefreshTokenAsync(oldToken))
+                 .ReturnsAsync((1, "jay@test.com", "Patient", DateTime.UtcNow.AddDays(3), false));
+        _authRepo.Setup(r => r.RevokeRefreshTokenAsync(oldToken)).Returns(Task.CompletedTask);
+        _authRepo.Setup(r => r.SaveRefreshTokenAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<DateTime>()))
+                 .Returns(Task.CompletedTask);
+        _authRepo.Setup(r => r.GetUserByIdAsync(1))
+                 .ReturnsAsync(new UserInfoDto { UserId = 1, Email = "jay@test.com", Role = "Patient", FullName = "Jay" });
+
+        // Act
+        var result = await _sut.RefreshTokenAsync(oldToken);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.AccessToken.Should().NotBeNullOrEmpty();
+        result.Data.RefreshToken.Should().NotBeNullOrEmpty();
+        _authRepo.Verify(r => r.RevokeRefreshTokenAsync(oldToken), Times.Once); // old token revoked exactly once
+    }
+
+    [Test]
+    [Description("Expired token: ExpiresAt is in the past, service rejects it")]
+    public async Task RefreshToken_ExpiredToken_ReturnsFail()
+    {
+        // Arrange
+        _authRepo.Setup(r => r.GetRefreshTokenAsync(It.IsAny<string>()))
+                 .ReturnsAsync((1, "jay@test.com", "Patient", DateTime.UtcNow.AddDays(-1), false)); // expired
+
+        // Act
+        var result = await _sut.RefreshTokenAsync("expired_token");
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.ToLower().Should().Contain("expired");
+    }
+
+    [Test]
+    [Description("Already-revoked token: IsRevoked = true, service rejects immediately")]
+    public async Task RefreshToken_RevokedToken_ReturnsFail()
+    {
+        // Arrange
+        _authRepo.Setup(r => r.GetRefreshTokenAsync(It.IsAny<string>()))
+                 .ReturnsAsync((1, "jay@test.com", "Patient", DateTime.UtcNow.AddDays(3), true)); // revoked
+
+        // Act
+        var result = await _sut.RefreshTokenAsync("revoked_token");
+
+        // Assert
+        result.Success.Should().BeFalse();
+    }
+
+    [Test]
+    [Description("Token not found in DB: repository returns null tuple, service rejects")]
+    public async Task RefreshToken_TokenNotFound_ReturnsFail()
+    {
+        // Arrange
+        _authRepo.Setup(r => r.GetRefreshTokenAsync(It.IsAny<string>()))
+                 .ReturnsAsync(((int UserId, string Email, string Role, DateTime ExpiresAt, bool IsRevoked)?)null);
+
+        // Act
+        var result = await _sut.RefreshTokenAsync("nonexistent_token");
+
+        // Assert
+        result.Success.Should().BeFalse();
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // LOGOUT
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Logout calls RevokeRefreshToken exactly once with the supplied token")]
+    public async Task Logout_ValidToken_RevokesToken()
+    {
+        // Arrange
+        const string token = "user_refresh_token_xyz";
+        _authRepo.Setup(r => r.RevokeRefreshTokenAsync(token)).Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _sut.LogoutAsync(token);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        _authRepo.Verify(r => r.RevokeRefreshTokenAsync(token), Times.Once);
+    }
+}

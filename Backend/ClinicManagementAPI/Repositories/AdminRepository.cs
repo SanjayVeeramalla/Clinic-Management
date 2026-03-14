@@ -1,10 +1,11 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using ClinicManagementAPI.Data;
-using ClinicManagementAPI.DTOs.Admin;
-using ClinicManagementAPI.Repositories.Interfaces;
+using ClinicManagement.API.Data;
+using ClinicManagement.API.DTOs.Admin;
+using ClinicManagement.API.DTOs.Auth;
+using ClinicManagement.API.Repositories.Interfaces;
 
-namespace ClinicManagementAPI.Repositories;
+namespace ClinicManagement.API.Repositories;
 
 public class AdminRepository : IAdminRepository
 {
@@ -80,5 +81,34 @@ public class AdminRepository : IAdminRepository
         );
 
         return (string)messageParam.Value;
+    }
+
+    // Creates a User (Doctor role) + Doctor profile in a single SP call.
+    // Admin provides all details — no separate registration step needed.
+    public async Task<(int UserId, int DoctorId, string Message)> CreateDoctorAccountAsync(
+        CreateDoctorAccountDto dto, string passwordHash)
+    {
+        var userIdParam    = new SqlParameter("@UserId",   System.Data.SqlDbType.Int)          { Direction = System.Data.ParameterDirection.Output };
+        var doctorIdParam  = new SqlParameter("@DoctorId", System.Data.SqlDbType.Int)          { Direction = System.Data.ParameterDirection.Output };
+        var messageParam   = new SqlParameter("@Message",  System.Data.SqlDbType.NVarChar, 200){ Direction = System.Data.ParameterDirection.Output };
+
+        await _context.Database.ExecuteSqlRawAsync(
+            "EXEC sp_CreateDoctorAccount @FullName, @Email, @PasswordHash, @Phone, " +
+            "@SpecializationId, @LicenseNumber, @YearsOfExperience, @ConsultationFee, " +
+            "@UserId OUTPUT, @DoctorId OUTPUT, @Message OUTPUT",
+            new SqlParameter("@FullName",           dto.FullName),
+            new SqlParameter("@Email",              dto.Email),
+            new SqlParameter("@PasswordHash",       passwordHash),
+            new SqlParameter("@Phone",              (object?)dto.Phone ?? DBNull.Value),
+            new SqlParameter("@SpecializationId",   dto.SpecializationId),
+            new SqlParameter("@LicenseNumber",      dto.LicenseNumber),
+            new SqlParameter("@YearsOfExperience",  dto.YearsOfExperience),
+            new SqlParameter("@ConsultationFee",    dto.ConsultationFee),
+            userIdParam,
+            doctorIdParam,
+            messageParam
+        );
+
+        return ((int)userIdParam.Value, (int)doctorIdParam.Value, (string)messageParam.Value);
     }
 }

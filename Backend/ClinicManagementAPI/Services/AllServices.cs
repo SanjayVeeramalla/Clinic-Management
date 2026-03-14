@@ -1,14 +1,14 @@
 using BCrypt.Net;
-using ClinicManagementAPI.DTOs.Admin;
-using ClinicManagementAPI.DTOs.Appointment;
-using ClinicManagementAPI.DTOs.Auth;
-using ClinicManagementAPI.DTOs.Doctor;
-using ClinicManagementAPI.DTOs.Patient;
-using ClinicManagementAPI.Helpers;
-using ClinicManagementAPI.Repositories.Interfaces;
-using ClinicManagementAPI.Services.Interfaces;
+using ClinicManagement.API.DTOs.Admin;
+using ClinicManagement.API.DTOs.Appointment;
+using ClinicManagement.API.DTOs.Auth;
+using ClinicManagement.API.DTOs.Doctor;
+using ClinicManagement.API.DTOs.Patient;
+using ClinicManagement.API.Helpers;
+using ClinicManagement.API.Repositories.Interfaces;
+using ClinicManagement.API.Services.Interfaces;
 
-namespace ClinicManagementAPI.Services;
+namespace ClinicManagement.API.Services;
 
 public class AuthService : IAuthService
 {
@@ -31,17 +31,18 @@ public class AuthService : IAuthService
         try
         {
             var passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+            // sp_RegisterUser always creates a Patient — no role param needed
             var (userId, message) = await _authRepo.RegisterUserAsync(dto, passwordHash);
 
             if (userId <= 0)
                 return ApiResponse<AuthResponseDto>.Fail(message);
 
-            // Auto-create patient profile if role is Patient
-            if (dto.Role == "Patient")
-                await _patientRepo.CreatePatientAsync(userId);
+            // Always create patient profile — register endpoint is patients only
+            await _patientRepo.CreatePatientAsync(userId);
 
             var user = await _authRepo.GetUserByIdAsync(userId);
-            var accessToken = _jwtHelper.GenerateAccessToken(userId, dto.Email, dto.Role);
+            // Role is always Patient for public registration
+            var accessToken = _jwtHelper.GenerateAccessToken(userId, dto.Email, "Patient");
             var refreshToken = _jwtHelper.GenerateRefreshToken();
             var refreshExpiry = _jwtHelper.GetRefreshTokenExpiry();
 
@@ -49,10 +50,10 @@ public class AuthService : IAuthService
 
             return ApiResponse<AuthResponseDto>.Ok(new AuthResponseDto
             {
-                AccessToken = accessToken,
+                AccessToken  = accessToken,
                 RefreshToken = refreshToken,
-                ExpiresAt = DateTime.UtcNow.AddHours(1),
-                User = user!
+                ExpiresAt    = DateTime.UtcNow.AddHours(1),
+                User         = user!
             }, "Registration successful");
         }
         catch (Exception ex)
@@ -332,5 +333,35 @@ public class AdminService : IAdminService
     {
         var message = await _adminRepo.DeactivateUserAsync(userId);
         return message.Contains("success") ? ApiResponse.Ok(message) : ApiResponse.Fail(message);
+    }
+
+    // Admin creates a full Doctor account in one step:
+    //   1. Creates User with Role=Doctor
+    //   2. Creates Doctor profile linked to that user
+    // This replaces the old two-step flow (register via /auth/register then create profile).
+    public async Task<ApiResponse<CreateDoctorAccountResponseDto>> CreateDoctorAccountAsync(CreateDoctorAccountDto dto)
+    {
+        try
+        {
+            var passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+            var (userId, doctorId, message) = await _adminRepo.CreateDoctorAccountAsync(dto, passwordHash);
+
+            if (userId <= 0)
+                return ApiResponse<CreateDoctorAccountResponseDto>.Fail(message);
+
+            return ApiResponse<CreateDoctorAccountResponseDto>.Ok(new CreateDoctorAccountResponseDto
+            {
+                UserId        = userId,
+                DoctorId      = doctorId,
+                FullName      = dto.FullName,
+                Email         = dto.Email,
+                LicenseNumber = dto.LicenseNumber,
+                Message       = message
+            }, "Doctor account created successfully");
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse<CreateDoctorAccountResponseDto>.Fail($"Failed to create doctor account: {ex.Message}");
+        }
     }
 }

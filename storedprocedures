@@ -1,0 +1,1316 @@
+-- ============================================================
+-- Clinic Management System - Stored Procedures v2
+-- Real-world edge cases fully documented and handled
+-- ============================================================
+USE ClinicManagementDB;
+GO
+
+-- ============================================================
+-- AUTH PROCEDURES
+-- ============================================================
+
+-- Edge cases covered:
+--   [A1] Admin role cannot be self-registered
+--   [A2] Duplicate email (case-insensitive)
+--   [A3] Invalid role name
+CREATE OR ALTER PROCEDURE sp_RegisterUser
+    @FullName     NVARCHAR(150),
+    @Email        NVARCHAR(200),
+    @PasswordHash NVARCHAR(500),
+    @Phone        NVARCHAR(15),
+    @RoleName     NVARCHAR(50),
+    @UserId       INT OUTPUT,
+    @Message      NVARCHAR(200) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- [A1] Admin accounts can only be seeded, not self-registered
+        IF @RoleName = 'Admin'
+        BEGIN
+            SET @UserId = -1;  SET @Message = 'Admin accounts cannot be self-registered';
+            ROLLBACK; RETURN;
+        END
+
+        -- [A2] Duplicate email check
+        IF EXISTS (SELECT 1 FROM Users WHERE Email = @Email)
+        BEGIN
+            SET @UserId = -1;  SET @Message = 'An account with this email already exists';
+            ROLLBACK; RETURN;
+        END
+
+        -- [A3] Role must exist
+        DECLARE @RoleId INT;
+        SELECT @RoleId = RoleId FROM Roles WHERE RoleName = @RoleName;
+        IF @RoleId IS NULL
+        BEGIN
+            SET @UserId = -1;  SET @Message = 'Invalid role specified';
+            ROLLBACK; RETURN;
+        END
+
+        INSERT INTO Users (FullName, Email, PasswordHash, Phone, RoleId)
+        VALUES (@FullName, @Email, @PasswordHash, @Phone, @RoleId);
+
+        SET @UserId = SCOPE_IDENTITY();
+        SET @Message = 'User registered successfully';
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK;
+        SET @UserId = -1;  SET @Message = ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+-- Edge case: Only returns rows for ACTIVE users.
+-- Deactivated accounts get no rows — service treats as "invalid credentials"
+-- This avoids telling the caller that the account exists but is disabled (security).
+CREATE OR ALTER PROCEDURE sp_GetUserByEmail
+    @Email NVARCHAR(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT u.UserId, u.FullName, u.Email, u.PasswordHash, u.Phone,
+           u.IsActive, u.CreatedAt, r.RoleName
+    FROM Users u
+    INNER JOIN Roles r ON u.RoleId = r.RoleId
+    WHERE u.Email = @Email AND u.IsActive = 1;
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetUserById
+    @UserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT u.UserId, u.FullName, u.Email, u.Phone,
+           u.IsActive, u.CreatedAt, r.RoleName
+    FROM Users u
+    INNER JOIN Roles r ON u.RoleId = r.RoleId
+    WHERE u.UserId = @UserId;
+END
+GO
+
+-- Edge case: Revokes ALL previous tokens before inserting a new one.
+-- Prevents multiple valid refresh tokens (token family rotation — one active session).
+CREATE OR ALTER PROCEDURE sp_SaveRefreshToken
+    @UserId    INT,
+    @Token     NVARCHAR(500),
+    @ExpiresAt DATETIME2
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE RefreshTokens SET IsRevoked = 1 WHERE UserId = @UserId AND IsRevoked = 0;
+    INSERT INTO RefreshTokens (UserId, Token, ExpiresAt) VALUES (@UserId, @Token, @ExpiresAt);
+END
+GO
+
+-- Edge case: Returns IsActive so the service can block token refresh for deactivated users.
+-- Service must check: IsRevoked=0 AND ExpiresAt > NOW AND IsActive=1
+CREATE OR ALTER PROCEDURE sp_GetRefreshToken
+    @Token NVARCHAR(500)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT rt.TokenId, rt.UserId, rt.Token, rt.ExpiresAt, rt.IsRevoked,
+           u.Email, u.IsActive, r.RoleName
+    FROM RefreshTokens rt
+    INNER JOIN Users u ON rt.UserId = u.UserId
+    INNER JOIN Roles r ON u.RoleId  = r.RoleId
+    WHERE rt.Token = @Token;
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_RevokeRefreshToken
+    @Token NVARCHAR(500)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE RefreshTokens SET IsRevoked = 1 WHERE Token = @Token;
+END
+GO
+
+-- ============================================================
+-- DOCTOR PROCEDURES
+-- ============================================================
+
+-- Edge cases covered:
+--   [D1] User must exist and be active
+--   [D2] User must have 'Doctor' role (cannot create doctor profile for a Patient)
+--   [D3] Doctor profile already exists for this user (no duplicates)
+--   [D4] License number must be unique globally
+--   [D5] Specialization must exist
+--   [D6] Consultation fee cannot be negative
+CREATE OR ALTER PROCEDURE sp_CreateDoctor
+    @UserId            INT,
+    @SpecializationId  INT,
+    @LicenseNumber     NVARCHAR(100),
+    @YearsOfExperience INT,
+    @ConsultationFee   DECIMAL(10,2),
+    @DoctorId          INT OUTPUT,
+    @Message           NVARCHAR(200) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- [D1] User must exist and be active
+        IF NOT EXISTS (SELECT 1 FROM Users WHERE UserId = @UserId AND IsActive = 1)
+        BEGIN
+            SET @DoctorId = -1;  SET @Message = 'User not found or account is inactive';
+            ROLLBACK; RETURN;
+        END
+
+        -- [D2] User must have Doctor role
+        DECLARE @UserRole NVARCHAR(50);
+        SELECT @UserRole = r.RoleName FROM Users u INNER JOIN Roles r ON u.RoleId = r.RoleId WHERE u.UserId = @UserId;
+        IF @UserRole != 'Doctor'
+        BEGIN
+            SET @DoctorId = -1;  SET @Message = 'User must have the Doctor role to create a doctor profile';
+            ROLLBACK; RETURN;
+        END
+
+        -- [D3] No duplicate doctor profile
+        IF EXISTS (SELECT 1 FROM Doctors WHERE UserId = @UserId)
+        BEGIN
+            SET @DoctorId = -1;  SET @Message = 'A doctor profile already exists for this user';
+            ROLLBACK; RETURN;
+        END
+
+        -- [D4] License number globally unique
+        IF EXISTS (SELECT 1 FROM Doctors WHERE LicenseNumber = @LicenseNumber)
+        BEGIN
+            SET @DoctorId = -1;  SET @Message = 'This license number is already registered';
+            ROLLBACK; RETURN;
+        END
+
+        -- [D5] Specialization must exist
+        IF NOT EXISTS (SELECT 1 FROM Specializations WHERE SpecializationId = @SpecializationId)
+        BEGIN
+            SET @DoctorId = -1;  SET @Message = 'Specialization not found';
+            ROLLBACK; RETURN;
+        END
+
+        -- [D6] Fee cannot be negative
+        IF @ConsultationFee < 0
+        BEGIN
+            SET @DoctorId = -1;  SET @Message = 'Consultation fee cannot be negative';
+            ROLLBACK; RETURN;
+        END
+
+        INSERT INTO Doctors (UserId, SpecializationId, LicenseNumber, YearsOfExperience, ConsultationFee)
+        VALUES (@UserId, @SpecializationId, @LicenseNumber, @YearsOfExperience, @ConsultationFee);
+
+        SET @DoctorId = SCOPE_IDENTITY();
+        SET @Message  = 'Doctor profile created successfully';
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK;
+        SET @DoctorId = -1;  SET @Message = ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetAllDoctors
+    @IsAvailable      BIT = NULL,
+    @SpecializationId INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT d.DoctorId, u.UserId, u.FullName, u.Email, u.Phone,
+           s.SpecializationId, s.Name AS Specialization,
+           d.LicenseNumber, d.YearsOfExperience, d.ConsultationFee, d.IsAvailable
+    FROM Doctors d
+    INNER JOIN Users u           ON d.UserId           = u.UserId
+    INNER JOIN Specializations s ON d.SpecializationId = s.SpecializationId
+    WHERE u.IsActive = 1
+      AND (@IsAvailable      IS NULL OR d.IsAvailable      = @IsAvailable)
+      AND (@SpecializationId IS NULL OR d.SpecializationId = @SpecializationId)
+    ORDER BY u.FullName;
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetDoctorById
+    @DoctorId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT d.DoctorId, u.UserId, u.FullName, u.Email, u.Phone,
+           s.SpecializationId, s.Name AS Specialization,
+           d.LicenseNumber, d.YearsOfExperience, d.ConsultationFee, d.IsAvailable
+    FROM Doctors d
+    INNER JOIN Users u           ON d.UserId           = u.UserId
+    INNER JOIN Specializations s ON d.SpecializationId = s.SpecializationId
+    WHERE d.DoctorId = @DoctorId AND u.IsActive = 1;
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetDoctorByUserId
+    @UserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT d.DoctorId, u.UserId, u.FullName, u.Email, u.Phone,
+           s.SpecializationId, s.Name AS Specialization,
+           d.LicenseNumber, d.YearsOfExperience, d.ConsultationFee, d.IsAvailable
+    FROM Doctors d
+    INNER JOIN Users u           ON d.UserId           = u.UserId
+    INNER JOIN Specializations s ON d.SpecializationId = s.SpecializationId
+    WHERE u.UserId = @UserId;
+END
+GO
+
+-- *** KEY REAL-WORLD EDGE CASE ***
+-- Edge cases covered:
+--   [U1] Doctor not found
+--   [U2] Fee cannot be negative
+--   [U3] Doctor sets IsAvailable = 0 (goes on leave/unavailable):
+--         → Auto-cancel ALL future Pending + Confirmed appointments
+--         → Clear cancellation reason explains why to patient
+--   Note: Schedule changes do NOT retroactively cancel booked appointments.
+--         Existing bookings are honoured regardless of schedule changes.
+CREATE OR ALTER PROCEDURE sp_UpdateDoctor
+    @DoctorId          INT,
+    @SpecializationId  INT,
+    @YearsOfExperience INT,
+    @ConsultationFee   DECIMAL(10,2),
+    @IsAvailable       BIT,
+    @Message           NVARCHAR(200) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- [U1] Doctor must exist
+        IF NOT EXISTS (SELECT 1 FROM Doctors WHERE DoctorId = @DoctorId)
+        BEGIN
+            SET @Message = 'Doctor not found';
+            ROLLBACK; RETURN;
+        END
+
+        -- [U2] Fee sanity
+        IF @ConsultationFee < 0
+        BEGIN
+            SET @Message = 'Consultation fee cannot be negative';
+            ROLLBACK; RETURN;
+        END
+
+        -- Capture previous availability before update
+        DECLARE @WasAvailable BIT;
+        SELECT @WasAvailable = IsAvailable FROM Doctors WHERE DoctorId = @DoctorId;
+
+        UPDATE Doctors
+        SET SpecializationId  = @SpecializationId,
+            YearsOfExperience = @YearsOfExperience,
+            ConsultationFee   = @ConsultationFee,
+            IsAvailable       = @IsAvailable
+        WHERE DoctorId = @DoctorId;
+
+        -- [U3] Doctor just went unavailable — cancel all future booked appointments
+        IF @WasAvailable = 1 AND @IsAvailable = 0
+        BEGIN
+            DECLARE @CancelledStatusId INT;
+            SELECT @CancelledStatusId = StatusId FROM AppointmentStatuses WHERE StatusName = 'Cancelled';
+
+            UPDATE Appointments
+            SET StatusId           = @CancelledStatusId,
+                CancellationReason = 'Doctor is temporarily unavailable. Your appointment has been cancelled. Please rebook with another doctor or wait for the doctor to resume.',
+                UpdatedAt          = GETUTCDATE()
+            WHERE DoctorId = @DoctorId
+              AND AppointmentDate >= CAST(GETUTCDATE() AS DATE)
+              AND StatusId IN (SELECT StatusId FROM AppointmentStatuses WHERE StatusName IN ('Pending','Confirmed'));
+
+            SET @Message = 'Doctor marked unavailable. All future pending/confirmed appointments have been cancelled.';
+        END
+        ELSE
+        BEGIN
+            SET @Message = 'Doctor updated successfully';
+        END
+
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK;
+        SET @Message = ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetDoctorAppointments
+    @DoctorId INT,
+    @FromDate DATE = NULL,
+    @ToDate   DATE = NULL,
+    @StatusId INT  = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT a.AppointmentId, a.AppointmentDate, a.AppointmentTime,
+           p.PatientId, u.FullName AS PatientName, u.Phone AS PatientPhone,
+           ast.StatusName AS Status, a.ReasonForVisit, a.Notes, a.CancellationReason,
+           pr.Diagnosis, pr.Medications
+    FROM Appointments a
+    INNER JOIN Patients p              ON a.PatientId   = p.PatientId
+    INNER JOIN Users u                 ON p.UserId      = u.UserId
+    INNER JOIN AppointmentStatuses ast ON a.StatusId    = ast.StatusId
+    LEFT  JOIN Prescriptions pr         ON a.AppointmentId = pr.AppointmentId
+    WHERE a.DoctorId = @DoctorId
+      AND (@FromDate IS NULL OR a.AppointmentDate >= @FromDate)
+      AND (@ToDate   IS NULL OR a.AppointmentDate <= @ToDate)
+      AND (@StatusId IS NULL OR a.StatusId         = @StatusId)
+    ORDER BY a.AppointmentDate DESC, a.AppointmentTime DESC;
+END
+GO
+
+-- Edge cases covered:
+--   [S1] Past date → return empty (no slots for past)
+--   [S2] Doctor not active or not available → return empty
+--   [S3] No schedule for this day of week → empty schedule result set
+--   Returns two result sets: (1) schedule window, (2) booked times
+--   Service layer computes free slots from these two.
+CREATE OR ALTER PROCEDURE sp_GetDoctorAvailableSlots
+    @DoctorId INT,
+    @Date     DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- [S1] Past date: return nothing
+    IF @Date < CAST(GETUTCDATE() AS DATE)
+    BEGIN
+        SELECT NULL AS StartTime, NULL AS EndTime, NULL AS SlotDurationMinutes WHERE 1 = 0;
+        RETURN;
+    END
+
+    -- [S2] Doctor must be available and active
+    IF NOT EXISTS (
+        SELECT 1 FROM Doctors d
+        INNER JOIN Users u ON d.UserId = u.UserId
+        WHERE d.DoctorId = @DoctorId AND d.IsAvailable = 1 AND u.IsActive = 1
+    )
+    BEGIN
+        SELECT NULL AS StartTime, NULL AS EndTime, NULL AS SlotDurationMinutes WHERE 1 = 0;
+        RETURN;
+    END
+
+    -- DayOfWeek: SQL Server DATEPART gives 1=Sunday...7=Saturday, convert to 0-based
+    DECLARE @DayOfWeek INT = DATEPART(WEEKDAY, @Date) - 1;
+
+    -- [S3] Working schedule for the day (may return 0 rows if doctor doesn't work this day)
+    SELECT ds.StartTime, ds.EndTime, ds.SlotDurationMinutes
+    FROM DoctorSchedules ds
+    WHERE ds.DoctorId = @DoctorId AND ds.DayOfWeek = @DayOfWeek AND ds.IsActive = 1;
+
+    -- Already-booked times (excluding cancelled and no-show)
+    SELECT a.AppointmentTime
+    FROM Appointments a
+    WHERE a.DoctorId        = @DoctorId
+      AND a.AppointmentDate = @Date
+      AND a.StatusId NOT IN (SELECT StatusId FROM AppointmentStatuses WHERE StatusName IN ('Cancelled','NoShow'));
+END
+GO
+
+-- Edge cases covered:
+--   [SC1] DayOfWeek must be 0–6
+--   [SC2] StartTime must be before EndTime
+--   [SC3] SlotDuration must be positive
+--   [SC4] Working window must fit at least one slot
+--   [SC5] Doctor must exist
+--   Note: Existing booked appointments are NOT cancelled when schedule changes.
+--         Schedule changes only affect future bookings (prospective only).
+CREATE OR ALTER PROCEDURE sp_SetDoctorSchedule
+    @DoctorId            INT,
+    @DayOfWeek           INT,
+    @StartTime           TIME,
+    @EndTime             TIME,
+    @SlotDurationMinutes INT,
+    @Message             NVARCHAR(200) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        -- [SC1] Day of week validation
+        IF @DayOfWeek < 0 OR @DayOfWeek > 6
+        BEGIN
+            SET @Message = 'DayOfWeek must be 0 (Sunday) through 6 (Saturday)';
+            RETURN;
+        END
+
+        -- [SC2] Start before end
+        IF @StartTime >= @EndTime
+        BEGIN
+            SET @Message = 'Start time must be before end time';
+            RETURN;
+        END
+
+        -- [SC3] Positive duration
+        IF @SlotDurationMinutes <= 0
+        BEGIN
+            SET @Message = 'Slot duration must be a positive number of minutes';
+            RETURN;
+        END
+
+        -- [SC4] At least one slot must fit
+        IF DATEDIFF(MINUTE, @StartTime, @EndTime) < @SlotDurationMinutes
+        BEGIN
+            SET @Message = 'Working window is shorter than one slot duration';
+            RETURN;
+        END
+
+        -- [SC5] Doctor must exist
+        IF NOT EXISTS (SELECT 1 FROM Doctors WHERE DoctorId = @DoctorId)
+        BEGIN
+            SET @Message = 'Doctor not found';
+            RETURN;
+        END
+
+        IF EXISTS (SELECT 1 FROM DoctorSchedules WHERE DoctorId = @DoctorId AND DayOfWeek = @DayOfWeek)
+            UPDATE DoctorSchedules
+            SET StartTime = @StartTime, EndTime = @EndTime, SlotDurationMinutes = @SlotDurationMinutes, IsActive = 1
+            WHERE DoctorId = @DoctorId AND DayOfWeek = @DayOfWeek;
+        ELSE
+            INSERT INTO DoctorSchedules (DoctorId, DayOfWeek, StartTime, EndTime, SlotDurationMinutes)
+            VALUES (@DoctorId, @DayOfWeek, @StartTime, @EndTime, @SlotDurationMinutes);
+
+        SET @Message = 'Schedule saved successfully. Existing booked appointments are unaffected.';
+    END TRY
+    BEGIN CATCH
+        SET @Message = ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+-- ============================================================
+-- PATIENT PROCEDURES
+-- ============================================================
+
+CREATE OR ALTER PROCEDURE sp_CreatePatient
+    @UserId           INT,
+    @DateOfBirth      DATE        = NULL,
+    @Gender           NVARCHAR(10) = NULL,
+    @BloodGroup       NVARCHAR(5)  = NULL,
+    @Address          NVARCHAR(300)= NULL,
+    @EmergencyContact NVARCHAR(15) = NULL,
+    @PatientId        INT OUTPUT,
+    @Message          NVARCHAR(200) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        IF EXISTS (SELECT 1 FROM Patients WHERE UserId = @UserId)
+        BEGIN
+            SET @PatientId = -1;  SET @Message = 'Patient profile already exists for this user';
+            ROLLBACK; RETURN;
+        END
+
+        IF @DateOfBirth IS NOT NULL
+        BEGIN
+            IF @DateOfBirth >= CAST(GETUTCDATE() AS DATE)
+            BEGIN
+                SET @PatientId = -1;  SET @Message = 'Date of birth must be in the past';
+                ROLLBACK; RETURN;
+            END
+            IF @DateOfBirth < DATEADD(YEAR, -120, CAST(GETUTCDATE() AS DATE))
+            BEGIN
+                SET @PatientId = -1;  SET @Message = 'Date of birth cannot be more than 120 years ago';
+                ROLLBACK; RETURN;
+            END
+        END
+
+        INSERT INTO Patients (UserId, DateOfBirth, Gender, BloodGroup, Address, EmergencyContact)
+        VALUES (@UserId, @DateOfBirth, @Gender, @BloodGroup, @Address, @EmergencyContact);
+
+        SET @PatientId = SCOPE_IDENTITY();
+        SET @Message   = 'Patient profile created successfully';
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK;
+        SET @PatientId = -1;  SET @Message = ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetPatientByUserId
+    @UserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT p.PatientId, u.UserId, u.FullName, u.Email, u.Phone,
+           p.DateOfBirth, p.Gender, p.BloodGroup, p.Address,
+           p.EmergencyContact, p.MedicalHistory, p.CreatedAt
+    FROM Patients p INNER JOIN Users u ON p.UserId = u.UserId
+    WHERE u.UserId = @UserId;
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetPatientById
+    @PatientId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT p.PatientId, u.UserId, u.FullName, u.Email, u.Phone,
+           p.DateOfBirth, p.Gender, p.BloodGroup, p.Address,
+           p.EmergencyContact, p.MedicalHistory, p.CreatedAt
+    FROM Patients p INNER JOIN Users u ON p.UserId = u.UserId
+    WHERE p.PatientId = @PatientId;
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_UpdatePatientProfile
+    @PatientId        INT,
+    @FullName         NVARCHAR(150),
+    @Phone            NVARCHAR(15),
+    @DateOfBirth      DATE,
+    @Gender           NVARCHAR(10),
+    @BloodGroup       NVARCHAR(5),
+    @Address          NVARCHAR(300),
+    @EmergencyContact NVARCHAR(15),
+    @MedicalHistory   NVARCHAR(MAX),
+    @Message          NVARCHAR(200) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @UserId INT;
+        SELECT @UserId = UserId FROM Patients WHERE PatientId = @PatientId;
+        IF @UserId IS NULL
+        BEGIN
+            SET @Message = 'Patient not found';
+            ROLLBACK; RETURN;
+        END
+
+        IF @DateOfBirth IS NOT NULL AND @DateOfBirth >= CAST(GETUTCDATE() AS DATE)
+        BEGIN
+            SET @Message = 'Date of birth must be in the past';
+            ROLLBACK; RETURN;
+        END
+
+        UPDATE Users    SET FullName = @FullName, Phone = @Phone, UpdatedAt = GETUTCDATE() WHERE UserId = @UserId;
+        UPDATE Patients SET DateOfBirth = @DateOfBirth, Gender = @Gender, BloodGroup = @BloodGroup,
+                           Address = @Address, EmergencyContact = @EmergencyContact, MedicalHistory = @MedicalHistory
+        WHERE PatientId = @PatientId;
+
+        SET @Message = 'Profile updated successfully';
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK;
+        SET @Message = ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetAllPatients
+    @SearchTerm NVARCHAR(100) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT p.PatientId, u.UserId, u.FullName, u.Email, u.Phone,
+           p.DateOfBirth, p.Gender, p.BloodGroup, u.IsActive
+    FROM Patients p INNER JOIN Users u ON p.UserId = u.UserId
+    WHERE (@SearchTerm IS NULL OR u.FullName LIKE '%'+@SearchTerm+'%' OR u.Email LIKE '%'+@SearchTerm+'%')
+    ORDER BY u.FullName;
+END
+GO
+
+-- ============================================================
+-- APPOINTMENT PROCEDURES
+-- ============================================================
+
+-- *** CORE REAL-WORLD EDGE CASES ***
+-- [B1]  Cannot book past dates
+-- [B2]  Same-day booking: time slot must be >= 30 min from NOW (not already passed)
+-- [B3]  Cannot book more than 90 days in advance
+-- [B4]  Doctor must be IsAvailable=1 and user IsActive=1
+-- [B5]  Patient user account must be active
+-- [B6]  Doctor slot conflict (another patient already booked that slot)
+-- [B7]  Patient overlap (patient already has appointment at same date+time)
+-- [B8]  Patient cannot book MORE THAN 1 appointment per day with the SAME doctor
+-- [B9]  Doctor must have an active schedule on that day of week
+-- [B10] Appointment time must fall within the schedule's StartTime–EndTime window
+-- [B11] Appointment time must align to a valid slot boundary (e.g. every 30 min from 09:00)
+CREATE OR ALTER PROCEDURE sp_BookAppointment
+    @PatientId       INT,
+    @DoctorId        INT,
+    @AppointmentDate DATE,
+    @AppointmentTime TIME,
+    @ReasonForVisit  NVARCHAR(500),
+    @AppointmentId   INT OUTPUT,
+    @Message         NVARCHAR(200) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- [B1] Past date
+        IF @AppointmentDate < CAST(GETUTCDATE() AS DATE)
+        BEGIN
+            SET @AppointmentId = -1;  SET @Message = 'Cannot book appointments for past dates';
+            ROLLBACK; RETURN;
+        END
+
+        -- [B2] Same-day: slot must be at least 30 minutes from now
+        IF @AppointmentDate = CAST(GETUTCDATE() AS DATE)
+        BEGIN
+            DECLARE @NowTime TIME = CAST(GETUTCDATE() AS TIME);
+            IF @AppointmentTime <= DATEADD(MINUTE, 30, @NowTime)
+            BEGIN
+                SET @AppointmentId = -1;
+                SET @Message = 'This slot has already passed. Please select a future slot.';
+                ROLLBACK; RETURN;
+            END
+        END
+
+        -- [B3] Max 90-day advance booking
+        IF @AppointmentDate > DATEADD(DAY, 90, CAST(GETUTCDATE() AS DATE))
+        BEGIN
+            SET @AppointmentId = -1;
+            SET @Message = 'Appointments cannot be booked more than 90 days in advance';
+            ROLLBACK; RETURN;
+        END
+
+        -- [B4] Doctor must be active and available
+        IF NOT EXISTS (
+            SELECT 1 FROM Doctors d INNER JOIN Users u ON d.UserId = u.UserId
+            WHERE d.DoctorId = @DoctorId AND d.IsAvailable = 1 AND u.IsActive = 1
+        )
+        BEGIN
+            SET @AppointmentId = -1;
+            SET @Message = 'Doctor is not currently accepting appointments';
+            ROLLBACK; RETURN;
+        END
+
+        -- [B5] Patient must exist and be active
+        IF NOT EXISTS (
+            SELECT 1 FROM Patients p INNER JOIN Users u ON p.UserId = u.UserId
+            WHERE p.PatientId = @PatientId AND u.IsActive = 1
+        )
+        BEGIN
+            SET @AppointmentId = -1;
+            SET @Message = 'Patient account not found or inactive';
+            ROLLBACK; RETURN;
+        END
+
+        -- [B6] Doctor slot conflict
+        IF EXISTS (
+            SELECT 1 FROM Appointments a
+            INNER JOIN AppointmentStatuses ast ON a.StatusId = ast.StatusId
+            WHERE a.DoctorId = @DoctorId AND a.AppointmentDate = @AppointmentDate
+              AND a.AppointmentTime = @AppointmentTime
+              AND ast.StatusName NOT IN ('Cancelled','NoShow')
+        )
+        BEGIN
+            SET @AppointmentId = -1;
+            SET @Message = 'This time slot is already booked. Please choose another.';
+            ROLLBACK; RETURN;
+        END
+
+        -- [B7] Patient overlap — patient already has any appointment at this exact date+time
+        IF EXISTS (
+            SELECT 1 FROM Appointments a
+            INNER JOIN AppointmentStatuses ast ON a.StatusId = ast.StatusId
+            WHERE a.PatientId = @PatientId AND a.AppointmentDate = @AppointmentDate
+              AND a.AppointmentTime = @AppointmentTime
+              AND ast.StatusName NOT IN ('Cancelled','NoShow')
+        )
+        BEGIN
+            SET @AppointmentId = -1;
+            SET @Message = 'You already have an appointment at this date and time';
+            ROLLBACK; RETURN;
+        END
+
+        -- [B8] Patient cannot have more than 1 active appointment per day with same doctor
+        IF EXISTS (
+            SELECT 1 FROM Appointments a
+            INNER JOIN AppointmentStatuses ast ON a.StatusId = ast.StatusId
+            WHERE a.PatientId = @PatientId AND a.DoctorId = @DoctorId
+              AND a.AppointmentDate = @AppointmentDate
+              AND ast.StatusName NOT IN ('Cancelled','NoShow')
+        )
+        BEGIN
+            SET @AppointmentId = -1;
+            SET @Message = 'You already have an appointment with this doctor on this date';
+            ROLLBACK; RETURN;
+        END
+
+        -- [B9] Doctor must have active schedule on this day of week
+        DECLARE @DayOfWeek INT = DATEPART(WEEKDAY, @AppointmentDate) - 1;
+        DECLARE @SchedStart TIME, @SchedEnd TIME, @SlotDuration INT;
+
+        SELECT @SchedStart   = ds.StartTime,
+               @SchedEnd     = ds.EndTime,
+               @SlotDuration = ds.SlotDurationMinutes
+        FROM DoctorSchedules ds
+        WHERE ds.DoctorId = @DoctorId AND ds.DayOfWeek = @DayOfWeek AND ds.IsActive = 1;
+
+        IF @SchedStart IS NULL
+        BEGIN
+            SET @AppointmentId = -1;
+            SET @Message = 'Doctor does not work on this day of the week';
+            ROLLBACK; RETURN;
+        END
+
+        -- [B10] Time must fall within the working window
+        IF @AppointmentTime < @SchedStart OR @AppointmentTime >= @SchedEnd
+        BEGIN
+            SET @AppointmentId = -1;
+            SET @Message = 'Selected time is outside the doctor''s working hours for this day';
+            ROLLBACK; RETURN;
+        END
+
+        -- [B11] Time must align to a valid slot boundary
+        DECLARE @MinutesFromStart INT = DATEDIFF(MINUTE, @SchedStart, @AppointmentTime);
+        IF @MinutesFromStart % @SlotDuration != 0
+        BEGIN
+            SET @AppointmentId = -1;
+            SET @Message = 'Invalid slot. Please select from the available time slots.';
+            ROLLBACK; RETURN;
+        END
+
+        -- All checks passed — book the appointment
+        DECLARE @PendingStatusId INT;
+        SELECT @PendingStatusId = StatusId FROM AppointmentStatuses WHERE StatusName = 'Pending';
+
+        INSERT INTO Appointments (PatientId, DoctorId, AppointmentDate, AppointmentTime, StatusId, ReasonForVisit)
+        VALUES (@PatientId, @DoctorId, @AppointmentDate, @AppointmentTime, @PendingStatusId, @ReasonForVisit);
+
+        SET @AppointmentId = SCOPE_IDENTITY();
+        SET @Message       = 'Appointment booked successfully';
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK;
+        SET @AppointmentId = -1;  SET @Message = ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetPatientAppointments
+    @PatientId INT,
+    @StatusId  INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT a.AppointmentId, a.AppointmentDate, a.AppointmentTime,
+           d.DoctorId, u.FullName AS DoctorName, s.Name AS Specialization,
+           ast.StatusName AS Status, a.ReasonForVisit, a.Notes, a.CancellationReason,
+           pr.PrescriptionId, pr.Diagnosis, pr.Medications, pr.Instructions, pr.FollowUpDate
+    FROM Appointments a
+    INNER JOIN Doctors d               ON a.DoctorId         = d.DoctorId
+    INNER JOIN Users u                 ON d.UserId           = u.UserId
+    INNER JOIN Specializations s       ON d.SpecializationId = s.SpecializationId
+    INNER JOIN AppointmentStatuses ast ON a.StatusId         = ast.StatusId
+    LEFT  JOIN Prescriptions pr         ON a.AppointmentId   = pr.AppointmentId
+    WHERE a.PatientId = @PatientId AND (@StatusId IS NULL OR a.StatusId = @StatusId)
+    ORDER BY a.AppointmentDate DESC, a.AppointmentTime DESC;
+END
+GO
+
+-- Edge cases covered:
+--   [C1] Appointment not found
+--   [C2] Already completed → cannot cancel
+--   [C3] Already cancelled → reject (idempotency)
+--   [C4] NoShow → cannot cancel
+--   [C5] Patient cancellation requires >= 24 hours notice
+--   [C6] Patient can only cancel their OWN appointment
+--   [C7] Doctors and Admins can cancel any time (emergency override)
+CREATE OR ALTER PROCEDURE sp_CancelAppointment
+    @AppointmentId      INT,
+    @CancelledByUserId  INT,
+    @CancellationReason NVARCHAR(500),
+    @Message            NVARCHAR(200) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @CurrentStatusId INT, @AppointmentDate DATE, @AppointmentTime TIME,
+                @PatientUserId INT, @DoctorUserId INT, @CancellerRole NVARCHAR(50);
+
+        SELECT @CurrentStatusId = a.StatusId,
+               @AppointmentDate = a.AppointmentDate,
+               @AppointmentTime = a.AppointmentTime,
+               @PatientUserId   = pu.UserId,
+               @DoctorUserId    = du.UserId
+        FROM Appointments a
+        INNER JOIN Patients p ON a.PatientId = p.PatientId
+        INNER JOIN Users pu   ON p.UserId    = pu.UserId
+        INNER JOIN Doctors d  ON a.DoctorId  = d.DoctorId
+        INNER JOIN Users du   ON d.UserId    = du.UserId
+        WHERE a.AppointmentId = @AppointmentId;
+
+        -- [C1] Appointment must exist
+        IF @CurrentStatusId IS NULL
+        BEGIN
+            SET @Message = 'Appointment not found';
+            ROLLBACK; RETURN;
+        END
+
+        SELECT @CancellerRole = r.RoleName FROM Users u INNER JOIN Roles r ON u.RoleId = r.RoleId WHERE u.UserId = @CancelledByUserId;
+
+        DECLARE @CompletedId INT, @CancelledId INT, @NoShowId INT;
+        SELECT @CompletedId = StatusId FROM AppointmentStatuses WHERE StatusName = 'Completed';
+        SELECT @CancelledId = StatusId FROM AppointmentStatuses WHERE StatusName = 'Cancelled';
+        SELECT @NoShowId    = StatusId FROM AppointmentStatuses WHERE StatusName = 'NoShow';
+
+        -- [C2] Cannot cancel completed
+        IF @CurrentStatusId = @CompletedId
+        BEGIN
+            SET @Message = 'Cannot cancel a completed appointment';
+            ROLLBACK; RETURN;
+        END
+
+        -- [C3] Already cancelled
+        IF @CurrentStatusId = @CancelledId
+        BEGIN
+            SET @Message = 'This appointment is already cancelled';
+            ROLLBACK; RETURN;
+        END
+
+        -- [C4] Cannot cancel a no-show
+        IF @CurrentStatusId = @NoShowId
+        BEGIN
+            SET @Message = 'Cannot cancel a no-show appointment';
+            ROLLBACK; RETURN;
+        END
+
+        -- [C5] & [C6] Patient-specific rules
+        IF @CancellerRole = 'Patient'
+        BEGIN
+            -- Ownership: patient can only cancel their own
+            IF @PatientUserId != @CancelledByUserId
+            BEGIN
+                SET @Message = 'You can only cancel your own appointments';
+                ROLLBACK; RETURN;
+            END
+
+            -- 24-hour notice required
+            DECLARE @AppointmentDatetime DATETIME2 =
+                CAST(@AppointmentDate AS DATETIME2) + CAST(@AppointmentTime AS DATETIME2);
+            IF @AppointmentDatetime <= DATEADD(HOUR, 24, GETUTCDATE())
+            BEGIN
+                SET @Message = 'Appointments must be cancelled at least 24 hours in advance';
+                ROLLBACK; RETURN;
+            END
+        END
+        -- [C7] Doctors and Admins can cancel any appointment at any time
+
+        UPDATE Appointments
+        SET StatusId           = @CancelledId,
+            CancellationReason = @CancellationReason,
+            UpdatedAt          = GETUTCDATE()
+        WHERE AppointmentId = @AppointmentId;
+
+        SET @Message = 'Appointment cancelled successfully';
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK;
+        SET @Message = ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+-- Edge cases covered:
+--   [T1] Appointment not found
+--   [T2] Invalid status name
+--   [T3] Completed → terminal, no changes allowed
+--   [T4] Cancelled → terminal, no changes allowed
+--   [T5] NoShow    → terminal, no changes allowed
+--   [T6] Valid transitions only:
+--          Pending   → Confirmed | Cancelled | NoShow
+--          Confirmed → Completed | Cancelled | NoShow
+--   [T7] Doctor ownership: doctor can only update their OWN appointments
+CREATE OR ALTER PROCEDURE sp_UpdateAppointmentStatus
+    @AppointmentId     INT,
+    @NewStatusName     NVARCHAR(50),
+    @Notes             NVARCHAR(MAX) = NULL,
+    @UpdatedByDoctorId INT           = NULL,   -- NULL = admin (skips ownership check)
+    @Message           NVARCHAR(200) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @CurrentStatusName NVARCHAR(50), @NewStatusId INT, @AppointmentDoctorId INT;
+
+        SELECT @CurrentStatusName    = ast.StatusName,
+               @AppointmentDoctorId = a.DoctorId
+        FROM Appointments a
+        INNER JOIN AppointmentStatuses ast ON a.StatusId = ast.StatusId
+        WHERE a.AppointmentId = @AppointmentId;
+
+        -- [T1] Appointment must exist
+        IF @CurrentStatusName IS NULL
+        BEGIN
+            SET @Message = 'Appointment not found';
+            ROLLBACK; RETURN;
+        END
+
+        -- [T7] Ownership check for doctors
+        IF @UpdatedByDoctorId IS NOT NULL AND @AppointmentDoctorId != @UpdatedByDoctorId
+        BEGIN
+            SET @Message = 'You can only update status for your own appointments';
+            ROLLBACK; RETURN;
+        END
+
+        -- [T2] Validate new status name
+        SELECT @NewStatusId = StatusId FROM AppointmentStatuses WHERE StatusName = @NewStatusName;
+        IF @NewStatusId IS NULL
+        BEGIN
+            SET @Message = 'Invalid status: ' + ISNULL(@NewStatusName,'null');
+            ROLLBACK; RETURN;
+        END
+
+        -- [T3] Completed is terminal
+        IF @CurrentStatusName = 'Completed'
+        BEGIN
+            SET @Message = 'A completed appointment cannot be changed';
+            ROLLBACK; RETURN;
+        END
+
+        -- [T4] Cancelled is terminal
+        IF @CurrentStatusName = 'Cancelled'
+        BEGIN
+            SET @Message = 'A cancelled appointment cannot be changed';
+            ROLLBACK; RETURN;
+        END
+
+        -- [T5] NoShow is terminal
+        IF @CurrentStatusName = 'NoShow'
+        BEGIN
+            SET @Message = 'A no-show appointment cannot be changed';
+            ROLLBACK; RETURN;
+        END
+
+        -- [T6] Enforce valid transition graph
+        IF @CurrentStatusName = 'Pending' AND @NewStatusName NOT IN ('Confirmed','Cancelled','NoShow')
+        BEGIN
+            SET @Message = 'Pending → only Confirmed, Cancelled, or NoShow allowed';
+            ROLLBACK; RETURN;
+        END
+
+        IF @CurrentStatusName = 'Confirmed' AND @NewStatusName NOT IN ('Completed','Cancelled','NoShow')
+        BEGIN
+            SET @Message = 'Confirmed → only Completed, Cancelled, or NoShow allowed';
+            ROLLBACK; RETURN;
+        END
+
+        UPDATE Appointments
+        SET StatusId  = @NewStatusId,
+            Notes     = ISNULL(@Notes, Notes),
+            UpdatedAt = GETUTCDATE()
+        WHERE AppointmentId = @AppointmentId;
+
+        SET @Message = 'Status updated to ' + @NewStatusName;
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK;
+        SET @Message = ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetAppointmentById
+    @AppointmentId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT a.AppointmentId, a.AppointmentDate, a.AppointmentTime,
+           p.PatientId,  pu.FullName AS PatientName,  pu.Phone AS PatientPhone,
+           d.DoctorId,   du.FullName AS DoctorName,   s.Name   AS Specialization,
+           ast.StatusName AS Status, ast.StatusId,
+           a.ReasonForVisit, a.Notes, a.CancellationReason,
+           pr.PrescriptionId, pr.Diagnosis, pr.Medications, pr.Instructions, pr.FollowUpDate
+    FROM Appointments a
+    INNER JOIN Patients p              ON a.PatientId         = p.PatientId
+    INNER JOIN Users pu                ON p.UserId            = pu.UserId
+    INNER JOIN Doctors d               ON a.DoctorId          = d.DoctorId
+    INNER JOIN Users du                ON d.UserId            = du.UserId
+    INNER JOIN Specializations s       ON d.SpecializationId  = s.SpecializationId
+    INNER JOIN AppointmentStatuses ast ON a.StatusId          = ast.StatusId
+    LEFT  JOIN Prescriptions pr         ON a.AppointmentId    = pr.AppointmentId
+    WHERE a.AppointmentId = @AppointmentId;
+END
+GO
+
+-- ============================================================
+-- PRESCRIPTION PROCEDURES
+-- ============================================================
+
+-- Edge cases covered:
+--   [P1] Appointment must exist
+--   [P2] Appointment must be Confirmed or Completed (not Pending/Cancelled/NoShow)
+--   [P3] Doctor ownership: only the appointment's doctor can write it
+--   [P4] Follow-up date must be in the future
+--   [P5] Upsert: if prescription exists, update it (doctor can revise notes)
+CREATE OR ALTER PROCEDURE sp_AddPrescription
+    @AppointmentId     INT,
+    @Diagnosis         NVARCHAR(500),
+    @Medications       NVARCHAR(MAX),
+    @Instructions      NVARCHAR(MAX),
+    @FollowUpDate      DATE = NULL,
+    @WrittenByDoctorId INT  = NULL,
+    @PrescriptionId    INT OUTPUT,
+    @Message           NVARCHAR(200) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @StatusName NVARCHAR(50), @AppointmentDoctorId INT;
+
+        SELECT @StatusName          = ast.StatusName,
+               @AppointmentDoctorId = a.DoctorId
+        FROM Appointments a
+        INNER JOIN AppointmentStatuses ast ON a.StatusId = ast.StatusId
+        WHERE a.AppointmentId = @AppointmentId;
+
+        -- [P1] Appointment must exist
+        IF @StatusName IS NULL
+        BEGIN
+            SET @PrescriptionId = -1;  SET @Message = 'Appointment not found';
+            ROLLBACK; RETURN;
+        END
+
+        -- [P3] Ownership check
+        IF @WrittenByDoctorId IS NOT NULL AND @AppointmentDoctorId != @WrittenByDoctorId
+        BEGIN
+            SET @PrescriptionId = -1;
+            SET @Message = 'You can only write prescriptions for your own appointments';
+            ROLLBACK; RETURN;
+        END
+
+        -- [P2] Status must be Confirmed or Completed
+        IF @StatusName NOT IN ('Confirmed','Completed')
+        BEGIN
+            SET @PrescriptionId = -1;
+            SET @Message = 'Prescriptions can only be added to Confirmed or Completed appointments (current: ' + @StatusName + ')';
+            ROLLBACK; RETURN;
+        END
+
+        -- [P4] Follow-up date must be future
+        IF @FollowUpDate IS NOT NULL AND @FollowUpDate <= CAST(GETUTCDATE() AS DATE)
+        BEGIN
+            SET @PrescriptionId = -1;  SET @Message = 'Follow-up date must be a future date';
+            ROLLBACK; RETURN;
+        END
+
+        -- [P5] Upsert
+        IF EXISTS (SELECT 1 FROM Prescriptions WHERE AppointmentId = @AppointmentId)
+        BEGIN
+            UPDATE Prescriptions
+            SET Diagnosis = @Diagnosis, Medications = @Medications,
+                Instructions = @Instructions, FollowUpDate = @FollowUpDate, UpdatedAt = GETUTCDATE()
+            WHERE AppointmentId = @AppointmentId;
+
+            SELECT @PrescriptionId = PrescriptionId FROM Prescriptions WHERE AppointmentId = @AppointmentId;
+            SET @Message = 'Prescription updated successfully';
+        END
+        ELSE
+        BEGIN
+            INSERT INTO Prescriptions (AppointmentId, Diagnosis, Medications, Instructions, FollowUpDate)
+            VALUES (@AppointmentId, @Diagnosis, @Medications, @Instructions, @FollowUpDate);
+            SET @PrescriptionId = SCOPE_IDENTITY();
+            SET @Message = 'Prescription added successfully';
+        END
+
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK;
+        SET @PrescriptionId = -1;  SET @Message = ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+-- ============================================================
+-- ADMIN PROCEDURES
+-- ============================================================
+
+CREATE OR ALTER PROCEDURE sp_GetDashboardStats
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT
+        (SELECT COUNT(*) FROM Users u INNER JOIN Roles r ON u.RoleId=r.RoleId WHERE r.RoleName='Patient' AND u.IsActive=1) AS TotalPatients,
+        (SELECT COUNT(*) FROM Users u INNER JOIN Roles r ON u.RoleId=r.RoleId WHERE r.RoleName='Doctor'  AND u.IsActive=1) AS TotalDoctors,
+        (SELECT COUNT(*) FROM Appointments) AS TotalAppointments,
+        (SELECT COUNT(*) FROM Appointments a INNER JOIN AppointmentStatuses ast ON a.StatusId=ast.StatusId WHERE ast.StatusName='Pending')   AS PendingAppointments,
+        (SELECT COUNT(*) FROM Appointments a INNER JOIN AppointmentStatuses ast ON a.StatusId=ast.StatusId WHERE ast.StatusName='Completed') AS CompletedAppointments,
+        (SELECT COUNT(*) FROM Appointments WHERE CAST(AppointmentDate AS DATE)=CAST(GETUTCDATE() AS DATE)) AS TodayAppointments;
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetAppointmentSummaryReport
+    @FromDate DATE,
+    @ToDate   DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF @FromDate > @ToDate BEGIN RAISERROR('FromDate cannot be after ToDate',16,1); RETURN; END
+
+    SELECT ast.StatusName AS Status,
+           COUNT(*) AS Count,
+           COUNT(*) * 100.0 / NULLIF(SUM(COUNT(*)) OVER (), 0) AS Percentage
+    FROM Appointments a
+    INNER JOIN AppointmentStatuses ast ON a.StatusId = ast.StatusId
+    WHERE a.AppointmentDate BETWEEN @FromDate AND @ToDate
+    GROUP BY ast.StatusName
+    ORDER BY Count DESC;
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_GetDoctorWorkloadReport
+    @FromDate DATE,
+    @ToDate   DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF @FromDate > @ToDate BEGIN RAISERROR('FromDate cannot be after ToDate',16,1); RETURN; END
+
+    SELECT d.DoctorId, u.FullName AS DoctorName, s.Name AS Specialization,
+           COUNT(a.AppointmentId) AS TotalAppointments,
+           SUM(CASE WHEN ast.StatusName='Completed' THEN 1 ELSE 0 END) AS Completed,
+           SUM(CASE WHEN ast.StatusName='Cancelled' THEN 1 ELSE 0 END) AS Cancelled,
+           SUM(CASE WHEN ast.StatusName='Pending'   THEN 1 ELSE 0 END) AS Pending,
+           SUM(CASE WHEN ast.StatusName='NoShow'    THEN 1 ELSE 0 END) AS NoShow
+    FROM Doctors d
+    INNER JOIN Users u           ON d.UserId           = u.UserId
+    INNER JOIN Specializations s ON d.SpecializationId = s.SpecializationId
+    LEFT  JOIN Appointments a    ON d.DoctorId = a.DoctorId AND a.AppointmentDate BETWEEN @FromDate AND @ToDate
+    LEFT  JOIN AppointmentStatuses ast ON a.StatusId = ast.StatusId
+    WHERE u.IsActive = 1
+    GROUP BY d.DoctorId, u.FullName, s.Name
+    ORDER BY TotalAppointments DESC;
+END
+GO
+
+-- *** KEY REAL-WORLD EDGE CASE ***
+-- Edge cases covered:
+--   [DA1] User not found
+--   [DA2] Admin cannot be deactivated
+--   [DA3] Already inactive (idempotency — no error, just inform)
+--   [DA4] Immediately revoke ALL active refresh tokens → cached tokens stop working instantly
+--   [DA5] Doctor deactivated: mark IsAvailable=0, cancel ALL future Pending+Confirmed appointments
+--   [DA6] Patient deactivated: cancel their future Pending+Confirmed appointments
+--   Both [DA5] and [DA6] set a descriptive CancellationReason for each affected appointment
+CREATE OR ALTER PROCEDURE sp_DeactivateUser
+    @UserId               INT,
+    @DeactivatedByAdminId INT,
+    @Message              NVARCHAR(200) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- [DA1] User must exist
+        IF NOT EXISTS (SELECT 1 FROM Users WHERE UserId = @UserId)
+        BEGIN
+            SET @Message = 'User not found';
+            ROLLBACK; RETURN;
+        END
+
+        -- [DA2] Cannot deactivate admin
+        DECLARE @RoleName NVARCHAR(50);
+        SELECT @RoleName = r.RoleName FROM Users u INNER JOIN Roles r ON u.RoleId=r.RoleId WHERE u.UserId=@UserId;
+        IF @RoleName = 'Admin'
+        BEGIN
+            SET @Message = 'Admin accounts cannot be deactivated';
+            ROLLBACK; RETURN;
+        END
+
+        -- [DA3] Idempotency
+        DECLARE @IsActive BIT;
+        SELECT @IsActive = IsActive FROM Users WHERE UserId = @UserId;
+        IF @IsActive = 0
+        BEGIN
+            SET @Message = 'Account is already inactive';
+            ROLLBACK; RETURN;
+        END
+
+        -- Deactivate the account
+        UPDATE Users SET IsActive = 0, UpdatedAt = GETUTCDATE() WHERE UserId = @UserId;
+
+        -- [DA4] Revoke all active refresh tokens — immediate session termination
+        UPDATE RefreshTokens SET IsRevoked = 1 WHERE UserId = @UserId AND IsRevoked = 0;
+
+        DECLARE @CancelledStatusId INT;
+        SELECT @CancelledStatusId = StatusId FROM AppointmentStatuses WHERE StatusName = 'Cancelled';
+
+        -- [DA5] Doctor-specific cleanup
+        IF @RoleName = 'Doctor'
+        BEGIN
+            DECLARE @DoctorId INT;
+            SELECT @DoctorId = DoctorId FROM Doctors WHERE UserId = @UserId;
+
+            UPDATE Doctors SET IsAvailable = 0 WHERE DoctorId = @DoctorId;
+
+            UPDATE Appointments
+            SET StatusId           = @CancelledStatusId,
+                CancellationReason = 'Doctor account has been deactivated. Your appointment has been cancelled. Please rebook with another doctor.',
+                UpdatedAt          = GETUTCDATE()
+            WHERE DoctorId = @DoctorId
+              AND AppointmentDate >= CAST(GETUTCDATE() AS DATE)
+              AND StatusId IN (SELECT StatusId FROM AppointmentStatuses WHERE StatusName IN ('Pending','Confirmed'));
+
+            SET @Message = 'Doctor account deactivated. Sessions revoked. Future appointments cancelled.';
+        END
+
+        -- [DA6] Patient-specific cleanup
+        ELSE IF @RoleName = 'Patient'
+        BEGIN
+            DECLARE @PatientId INT;
+            SELECT @PatientId = PatientId FROM Patients WHERE UserId = @UserId;
+
+            UPDATE Appointments
+            SET StatusId           = @CancelledStatusId,
+                CancellationReason = 'Patient account has been deactivated.',
+                UpdatedAt          = GETUTCDATE()
+            WHERE PatientId = @PatientId
+              AND AppointmentDate >= CAST(GETUTCDATE() AS DATE)
+              AND StatusId IN (SELECT StatusId FROM AppointmentStatuses WHERE StatusName IN ('Pending','Confirmed'));
+
+            SET @Message = 'Patient account deactivated. Sessions revoked. Future appointments cancelled.';
+        END
+
+        COMMIT;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK;
+        SET @Message = ERROR_MESSAGE();
+    END CATCH
+END
+GO
+
+PRINT '==========================================================';
+PRINT 'All stored procedures created successfully.';
+PRINT 'Edge cases covered:';
+PRINT '  Auth:        A1-A3 (admin guard, duplicate email, invalid role)';
+PRINT '  Doctor:      D1-D6 (role check, duplicate profile, license, fee)';
+PRINT '  UpdateDoctor:U1-U3 (unavailable → auto-cancel future appointments)';
+PRINT '  Schedule:    SC1-SC5 (day/time/window validation, prospective only)';
+PRINT '  Slots:       S1-S3 (past date, unavailable doctor, no schedule)';
+PRINT '  Booking:     B1-B11 (past, same-day time, 90-day cap, conflicts,';
+PRINT '               slot boundary alignment, schedule window check)';
+PRINT '  Cancel:      C1-C7 (terminal states, 24hr notice, ownership)';
+PRINT '  Status:      T1-T7 (transition graph, terminal states, ownership)';
+PRINT '  Prescription:P1-P5 (status guard, ownership, future date, upsert)';
+PRINT '  Deactivate:  DA1-DA6 (admin guard, token revocation, cascade cancel)';
+PRINT '==========================================================';
+GO

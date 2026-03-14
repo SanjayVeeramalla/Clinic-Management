@@ -1,0 +1,235 @@
+using Moq;
+using NUnit.Framework;
+using FluentAssertions;
+using ClinicManagement.API.DTOs.Patient;
+using ClinicManagement.API.Repositories.Interfaces;
+using ClinicManagement.API.Services;
+
+namespace ClinicManagement.Tests.Services;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PatientServiceTests  (10 tests)
+// Tests: GetProfile, UpdateProfile, GetAllPatients, GetPatientById
+// ─────────────────────────────────────────────────────────────────────────────
+[TestFixture]
+public class PatientServiceTests
+{
+    private Mock<IPatientRepository> _patientRepo = null!;
+    private PatientService           _sut         = null!;
+
+    // Reusable patient stub
+    private readonly PatientResponseDto _patient = new()
+    {
+        PatientId    = 1,
+        UserId       = 5,
+        FullName     = "Jay Patel",
+        Email        = "jay@test.com",
+        Phone        = "9876543210",
+        Gender       = "Male",
+        BloodGroup   = "O+",
+        DateOfBirth  = new DateOnly(1995, 6, 15)
+    };
+
+    [SetUp]
+    public void SetUp()
+    {
+        _patientRepo = new Mock<IPatientRepository>();
+        _sut = new PatientService(_patientRepo.Object);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // GET PROFILE
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Happy path: valid userId returns full patient profile")]
+    public async Task GetPatientProfile_ExistingUser_ReturnsProfile()
+    {
+        // Arrange
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(5)).ReturnsAsync(_patient);
+
+        // Act
+        var result = await _sut.GetPatientProfileAsync(5);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.FullName.Should().Be("Jay Patel");
+        result.Data.BloodGroup.Should().Be("O+");
+        result.Data.Gender.Should().Be("Male");
+    }
+
+    [Test]
+    [Description("Patient profile does not exist for userId: returns not found")]
+    public async Task GetPatientProfile_NonExistingUser_ReturnsFail()
+    {
+        // Arrange
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(999))
+                    .ReturnsAsync((PatientResponseDto?)null);
+
+        // Act
+        var result = await _sut.GetPatientProfileAsync(999);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("not found");
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // UPDATE PROFILE
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Valid update: profile data saved, repo called with correct patientId")]
+    public async Task UpdatePatientProfile_ValidData_ReturnsSuccess_AndCallsRepoWithCorrectId()
+    {
+        // Arrange
+        var dto = new UpdatePatientProfileDto
+        {
+            FullName         = "Jay Patel Updated",
+            Phone            = "9876543210",
+            Gender           = "Male",
+            BloodGroup       = "A+",
+            Address          = "123 Main St, Chennai",
+            EmergencyContact = "9000000001"
+        };
+
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(5)).ReturnsAsync(_patient);
+        _patientRepo.Setup(r => r.UpdatePatientProfileAsync(1, dto))
+                    .ReturnsAsync("Profile updated successfully");
+
+        // Act
+        var result = await _sut.UpdatePatientProfileAsync(5, dto);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        // Verify repo was called with PatientId=1 (looked up via GetPatientByUserIdAsync)
+        _patientRepo.Verify(r => r.UpdatePatientProfileAsync(1, dto), Times.Once);
+    }
+
+    [Test]
+    [Description("Patient not found: update repo must never be called")]
+    public async Task UpdatePatientProfile_PatientNotFound_ReturnsFail_RepoNotCalled()
+    {
+        // Arrange
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(99))
+                    .ReturnsAsync((PatientResponseDto?)null);
+
+        // Act
+        var result = await _sut.UpdatePatientProfileAsync(99, new UpdatePatientProfileDto
+        {
+            FullName = "Ghost User"
+        });
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("not found");
+        _patientRepo.Verify(r => r.UpdatePatientProfileAsync(
+            It.IsAny<int>(), It.IsAny<UpdatePatientProfileDto>()), Times.Never);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // GET ALL PATIENTS (Admin)
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("No search term: returns all patients")]
+    public async Task GetAllPatients_NoSearch_ReturnsAll()
+    {
+        // Arrange
+        var patients = new List<PatientResponseDto> { _patient };
+        _patientRepo.Setup(r => r.GetAllPatientsAsync(null)).ReturnsAsync(patients);
+
+        // Act
+        var result = await _sut.GetAllPatientsAsync();
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().HaveCount(1);
+    }
+
+    [Test]
+    [Description("Search by name: returns only matching patients")]
+    public async Task GetAllPatients_SearchByName_ReturnsMatching()
+    {
+        // Arrange
+        var filtered = new List<PatientResponseDto> { _patient };
+        _patientRepo.Setup(r => r.GetAllPatientsAsync("Jay")).ReturnsAsync(filtered);
+
+        // Act
+        var result = await _sut.GetAllPatientsAsync("Jay");
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().HaveCount(1);
+        result.Data![0].FullName.Should().Contain("Jay");
+    }
+
+    [Test]
+    [Description("Search with no matches: returns empty list (not an error)")]
+    public async Task GetAllPatients_SearchNoMatch_ReturnsEmptyList()
+    {
+        // Arrange
+        _patientRepo.Setup(r => r.GetAllPatientsAsync("zzznomatch"))
+                    .ReturnsAsync(new List<PatientResponseDto>());
+
+        // Act
+        var result = await _sut.GetAllPatientsAsync("zzznomatch");
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().BeEmpty();
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // GET PATIENT BY ID (Admin)
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Existing PatientId: returns patient details")]
+    public async Task GetPatientById_ExistingId_ReturnsPatient()
+    {
+        // Arrange
+        _patientRepo.Setup(r => r.GetPatientByIdAsync(1)).ReturnsAsync(_patient);
+
+        // Act
+        var result = await _sut.GetPatientByIdAsync(1);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.PatientId.Should().Be(1);
+        result.Data.Email.Should().Be("jay@test.com");
+    }
+
+    [Test]
+    [Description("Non-existing PatientId: repository returns null → not found")]
+    public async Task GetPatientById_NonExistingId_ReturnsFail()
+    {
+        // Arrange
+        _patientRepo.Setup(r => r.GetPatientByIdAsync(404))
+                    .ReturnsAsync((PatientResponseDto?)null);
+
+        // Act
+        var result = await _sut.GetPatientByIdAsync(404);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("not found");
+    }
+
+    [Test]
+    [Description("GetPatientByUserId vs GetPatientById: same patient, different lookup keys both work")]
+    public async Task GetPatient_ByUserId_And_ById_BothReturnSamePatient()
+    {
+        // Arrange
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(5)).ReturnsAsync(_patient);
+        _patientRepo.Setup(r => r.GetPatientByIdAsync(1)).ReturnsAsync(_patient);
+
+        // Act
+        var byUserId   = await _sut.GetPatientProfileAsync(5);
+        var byPatientId = await _sut.GetPatientByIdAsync(1);
+
+        // Assert
+        byUserId.Data!.PatientId.Should().Be(byPatientId.Data!.PatientId);
+        byUserId.Data.Email.Should().Be(byPatientId.Data.Email);
+    }
+}

@@ -60,7 +60,7 @@ public class AuthServiceTests
         var dto = new RegisterRequestDto
         {
             FullName = "Jay Patel", Email = "jay@test.com",
-            Password = "Test@123",  Role  = "Patient"
+            Password = "Test@123"   // Role removed — backend hardcodes Patient
         };
 
         _authRepo.Setup(r => r.RegisterUserAsync(It.IsAny<RegisterRequestDto>(), It.IsAny<string>()))
@@ -95,7 +95,7 @@ public class AuthServiceTests
         var dto = new RegisterRequestDto
         {
             FullName = "Jay Patel", Email = "existing@test.com",
-            Password = "Test@123",  Role  = "Patient"
+            Password = "Test@123"
         };
 
         _authRepo.Setup(r => r.RegisterUserAsync(It.IsAny<RegisterRequestDto>(), It.IsAny<string>()))
@@ -111,21 +111,24 @@ public class AuthServiceTests
     }
 
     [Test]
-    [Description("Doctor registration must NOT create a patient profile row")]
-    public async Task Register_DoctorRole_DoesNotCreatePatientProfile()
+    [Description("Register always creates a Patient profile — role is hardcoded, never from client")]
+    public async Task Register_AlwaysCreatesPatientProfile_RoleHardcoded()
     {
-        // Arrange
+        // Arrange — no Role field on the DTO anymore
         var dto = new RegisterRequestDto
         {
-            FullName = "Dr. Smith", Email = "doc@test.com",
-            Password = "Test@123",  Role  = "Doctor"
+            FullName = "Test Patient", Email = "patient@test.com",
+            Password = "Test@123"
         };
 
         _authRepo.Setup(r => r.RegisterUserAsync(It.IsAny<RegisterRequestDto>(), It.IsAny<string>()))
-                 .ReturnsAsync((10, "User registered successfully"));
+                 .ReturnsAsync((5, "User registered successfully"));
 
-        _authRepo.Setup(r => r.GetUserByIdAsync(10))
-                 .ReturnsAsync(new UserInfoDto { UserId = 10, FullName = "Dr. Smith", Email = "doc@test.com", Role = "Doctor" });
+        _patientRepo.Setup(r => r.CreatePatientAsync(5, null))
+                    .ReturnsAsync((1, "Patient profile created"));
+
+        _authRepo.Setup(r => r.GetUserByIdAsync(5))
+                 .ReturnsAsync(new UserInfoDto { UserId = 5, FullName = dto.FullName, Email = dto.Email, Role = "Patient" });
 
         _authRepo.Setup(r => r.SaveRefreshTokenAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<DateTime>()))
                  .Returns(Task.CompletedTask);
@@ -135,8 +138,12 @@ public class AuthServiceTests
 
         // Assert
         result.Success.Should().BeTrue();
-        // Patient repo CreatePatientAsync must NEVER be called for Doctor role
-        _patientRepo.Verify(r => r.CreatePatientAsync(It.IsAny<int>(), It.IsAny<UpdatePatientProfileDto>()), Times.Never);
+        result.Data!.User.Role.Should().Be("Patient");
+        // Patient profile MUST always be created on public registration
+        _patientRepo.Verify(r => r.CreatePatientAsync(5, null), Times.Once);
+        // Verify repo called exactly once with no role param
+        _authRepo.Verify(r => r.RegisterUserAsync(
+            It.IsAny<RegisterRequestDto>(), It.IsAny<string>()), Times.Once);
     }
 
     [Test]

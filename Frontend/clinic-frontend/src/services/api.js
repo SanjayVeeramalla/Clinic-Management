@@ -1,13 +1,6 @@
-// Vite difference from CRA:
-//   CRA env vars: process.env.REACT_APP_*
-//   Vite env vars: import.meta.env.VITE_*
-//
-// To override in production create a .env file:
-//   VITE_API_URL=https://your-api-domain.com/api
-
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 // ─── Axios instance ───────────────────────────────────────────────────────────
 const api = axios.create({
@@ -67,40 +60,40 @@ export const authAPI = {
   refreshToken: (refreshToken) => api.post('/auth/refresh-token', { refreshToken }),
 };
 
-// ─── Doctor endpoints ─────────────────────────────────────────────────────────
+// ─── Doctors endpoints ────────────────────────────────────────────────────────
 export const doctorAPI = {
-  getAll:                  (params)              => api.get('/doctor', { params }),
-  getById:                 (id)                  => api.get(`/doctor/${id}`),
-  getProfile:              ()                    => api.get('/doctor/profile'),
-  update:                  (id, data)            => api.put(`/doctor/${id}`, data),
-  getAppointments:         (id, params)          => api.get(`/doctor/${id}/appointments`, { params }),
-  getAvailableSlots:       (id, date)            => api.get(`/doctor/${id}/available-slots`, { params: { date } }),
-  setSchedule:             (id, data)            => api.post(`/doctor/${id}/schedule`, data),
-  updateAppointmentStatus: (appointmentId, data) => api.put(`/doctor/appointments/${appointmentId}/status`, data),
-  addPrescription:         (appointmentId, data) => api.post(`/doctor/appointments/${appointmentId}/prescription`, data),
+  getAll:                 (params)               => api.get('/doctor', { params }),
+  getById:                (id)                   => api.get(`/doctor/${id}`),
+  getProfile:             ()                     => api.get('/doctor/profile'),
+  update:                 (id, data)             => api.put(`/doctor/${id}`, data),
+  getAppointments:        (id, params)           => api.get(`/doctor/${id}/appointments`, { params }),
+  getAvailableSlots:      (id, date)             => api.get(`/doctor/${id}/available-slots`, { params: { date } }),
+  setSchedule:            (id, data)             => api.post(`/doctor/${id}/schedule`, data),
+  updateAppointmentStatus:(appointmentId, data)  => api.put(`/doctor/appointments/${appointmentId}/status`, data),
+  addPrescription:        (appointmentId, data)  => api.post(`/doctor/appointments/${appointmentId}/prescription`, data),
 };
 
 // ─── Patient endpoints ────────────────────────────────────────────────────────
 export const patientAPI = {
-  getProfile:        ()         => api.get('/patient/profile'),
-  updateProfile:     (data)     => api.put('/patient/profile', data),
-  bookAppointment:   (data)     => api.post('/patient/appointments', data),
-  getAppointments:   (params)   => api.get('/patient/appointments', { params }),
-  getAppointment:    (id)       => api.get(`/patient/appointments/${id}`),
-  cancelAppointment: (id, data) => api.delete(`/patient/appointments/${id}`, { data }),
+  getProfile:        ()           => api.get('/patient/profile'),
+  updateProfile:     (data)       => api.put('/patient/profile', data),
+  bookAppointment:   (data)       => api.post('/patient/appointments', data),
+  getAppointments:   (params)     => api.get('/patient/appointments', { params }),
+  getAppointment:    (id)         => api.get(`/patient/appointments/${id}`),
+  cancelAppointment: (id, data)   => api.delete(`/patient/appointments/${id}`, { data }),
 };
 
 // ─── Admin endpoints ──────────────────────────────────────────────────────────
 export const adminAPI = {
-  getDashboard:             ()       => api.get('/admin/dashboard'),
-  getDoctors:               ()       => api.get('/admin/doctors'),
-  createDoctor:             (data)   => api.post('/admin/doctors', data),
-  updateDoctor:             (id, d)  => api.put(`/admin/doctors/${id}`, d),
-  getPatients:              (search) => api.get('/admin/patients', { params: { search } }),
-  getPatient:               (id)     => api.get(`/admin/patients/${id}`),
-  deactivateUser:           (id)     => api.put(`/admin/users/${id}/deactivate`),
-  appointmentSummaryReport: (data)   => api.post('/admin/reports/appointments', data),
-  doctorWorkloadReport:     (data)   => api.post('/admin/reports/doctor-workload', data),
+  getDashboard:            ()       => api.get('/admin/dashboard'),
+  getDoctors:              ()       => api.get('/admin/doctors'),
+  createDoctorAccount:     (data)   => api.post('/admin/doctors/create-account', data),
+  updateDoctor:            (id, d)  => api.put(`/admin/doctors/${id}`, d),
+  getPatients:             (search) => api.get('/admin/patients', { params: { search } }),
+  getPatient:              (id)     => api.get(`/admin/patients/${id}`),
+  deactivateUser:          (id)     => api.put(`/admin/users/${id}/deactivate`),
+  appointmentSummaryReport:(data)   => api.post('/admin/reports/appointments', data),
+  doctorWorkloadReport:    (data)   => api.post('/admin/reports/doctor-workload', data),
 };
 
 // ─── Specializations ──────────────────────────────────────────────────────────

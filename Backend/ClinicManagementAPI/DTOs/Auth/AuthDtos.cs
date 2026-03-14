@@ -1,7 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace ClinicManagementAPI.DTOs.Auth;
+namespace ClinicManagement.API.DTOs.Auth;
 
+// Public registration is for Patients ONLY.
+// Doctors are created exclusively by Admin via POST /api/admin/doctors/create-account.
+// Role is NOT accepted from the client — it is hardcoded to "Patient" in AuthService.
 public class RegisterRequestDto
 {
     [Required, MaxLength(150)]
@@ -15,9 +18,7 @@ public class RegisterRequestDto
 
     [MaxLength(15), RegularExpression(@"^[6-9]\d{9}$", ErrorMessage = "Invalid Indian mobile number")]
     public string? Phone { get; set; }
-
-    [Required]
-    public string Role { get; set; } = "Patient"; // Admin, Doctor, Patient
+    // Role is intentionally removed — public register always creates a Patient
 }
 
 public class LoginRequestDto

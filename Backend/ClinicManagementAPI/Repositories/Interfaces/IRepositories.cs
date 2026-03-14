@@ -1,13 +1,15 @@
-using ClinicManagementAPI.DTOs.Auth;
-using ClinicManagementAPI.DTOs.Doctor;
-using ClinicManagementAPI.DTOs.Patient;
-using ClinicManagementAPI.DTOs.Appointment;
-using ClinicManagementAPI.DTOs.Admin;
+using ClinicManagement.API.DTOs.Auth;
+using ClinicManagement.API.DTOs.Doctor;
+using ClinicManagement.API.DTOs.Patient;
+using ClinicManagement.API.DTOs.Appointment;
+using ClinicManagement.API.DTOs.Admin;
 
-namespace ClinicManagementAPI.Repositories.Interfaces;
+namespace ClinicManagement.API.Repositories.Interfaces;
 
 public interface IAuthRepository
 {
+    // role is passed separately — RegisterRequestDto no longer carries a Role field
+    // Role not passed — sp_RegisterUser always creates Patient internally
     Task<(int UserId, string Message)> RegisterUserAsync(RegisterRequestDto dto, string passwordHash);
     Task<UserInfoDto?> GetUserByEmailAsync(string email);
     Task<UserInfoDto?> GetUserByIdAsync(int userId);
@@ -56,4 +58,6 @@ public interface IAdminRepository
     Task<List<AppointmentSummaryDto>> GetAppointmentSummaryReportAsync(DateOnly fromDate, DateOnly toDate);
     Task<List<DoctorWorkloadDto>> GetDoctorWorkloadReportAsync(DateOnly fromDate, DateOnly toDate);
     Task<string> DeactivateUserAsync(int userId);
+    // Creates User (Doctor role) + Doctor profile in one transaction
+    Task<(int UserId, int DoctorId, string Message)> CreateDoctorAccountAsync(CreateDoctorAccountDto dto, string passwordHash);
 }

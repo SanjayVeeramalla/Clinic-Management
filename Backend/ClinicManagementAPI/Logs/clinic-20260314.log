@@ -1,0 +1,562 @@
+[2026-03-14 09:30:59 INF] Starting Clinic Management API...
+[2026-03-14 09:31:00 INF] Clinic Management API is running. Swagger: http://localhost:5000/swagger
+[2026-03-14 09:31:10 INF] Request: GET /swagger | IP: ::1
+[2026-03-14 09:31:10 INF] Response: 301 for GET /swagger
+[2026-03-14 09:31:10 INF] Request: GET /swagger/index.html | IP: ::1
+[2026-03-14 09:31:10 INF] Response: 200 for GET /swagger/index.html
+[2026-03-14 09:31:10 INF] Request: GET /swagger/swagger-ui.css | IP: ::1
+[2026-03-14 09:31:10 INF] Request: GET /swagger/index.css | IP: ::1
+[2026-03-14 09:31:10 INF] Request: GET /swagger/swagger-ui-bundle.js | IP: ::1
+[2026-03-14 09:31:10 INF] Request: GET /swagger/swagger-ui-standalone-preset.js | IP: ::1
+[2026-03-14 09:31:10 INF] Request: GET /swagger/index.js | IP: ::1
+[2026-03-14 09:31:10 INF] Response: 200 for GET /swagger/index.js
+[2026-03-14 09:31:10 INF] Response: 200 for GET /swagger/index.css
+[2026-03-14 09:31:10 INF] Response: 200 for GET /swagger/swagger-ui-standalone-preset.js
+[2026-03-14 09:31:10 INF] Response: 200 for GET /swagger/swagger-ui.css
+[2026-03-14 09:31:10 INF] Response: 200 for GET /swagger/swagger-ui-bundle.js
+[2026-03-14 09:31:11 INF] Request: GET /swagger/v1/swagger.json | IP: ::1
+[2026-03-14 09:31:11 INF] Request: GET /swagger/favicon-32x32.png | IP: ::1
+[2026-03-14 09:31:11 INF] Response: 200 for GET /swagger/favicon-32x32.png
+[2026-03-14 09:31:11 INF] Response: 200 for GET /swagger/v1/swagger.json
+[2026-03-14 09:35:24 INF] Request: POST /api/Auth/login | IP: ::1
+[2026-03-14 09:35:24 WRN] Failed to determine the https port for redirect.
+[2026-03-14 09:35:30 INF] Response: 401 for POST /api/Auth/login
+[2026-03-14 09:40:28 INF] Starting Clinic Management API...
+[2026-03-14 09:40:29 INF] Clinic Management API is running. Swagger: http://localhost:5000/swagger
+[2026-03-14 09:40:36 INF] Request: POST /api/Auth/register | IP: ::1
+[2026-03-14 09:40:36 WRN] Failed to determine the https port for redirect.
+[2026-03-14 09:40:38 INF] Response: 400 for POST /api/Auth/register
+[2026-03-14 09:41:03 INF] Request: POST /api/Auth/register | IP: ::1
+[2026-03-14 09:41:03 INF] Response: 400 for POST /api/Auth/register
+[2026-03-14 09:41:17 INF] Request: POST /api/Auth/register | IP: ::1
+[2026-03-14 09:41:18 INF] Response: 200 for POST /api/Auth/register
+[2026-03-14 10:15:40 INF] Request: POST /api/Auth/login | IP: ::1
+[2026-03-14 10:15:40 ERR] An exception occurred while iterating over the results of a query for context type 'ClinicManagementAPI.Data.ClinicDbContext'.
+System.InvalidOperationException: The required column 'RoleId' was not present in the results of a 'FromSql' operation.
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.BuildIndexMap(IReadOnlyList`1 columnNames, DbDataReader dataReader)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+System.InvalidOperationException: The required column 'RoleId' was not present in the results of a 'FromSql' operation.
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.BuildIndexMap(IReadOnlyList`1 columnNames, DbDataReader dataReader)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+[2026-03-14 10:15:40 ERR] Login error for admin@clinic.com
+System.InvalidOperationException: The required column 'RoleId' was not present in the results of a 'FromSql' operation.
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.BuildIndexMap(IReadOnlyList`1 columnNames, DbDataReader dataReader)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at ClinicManagementAPI.Repositories.AuthRepository.GetUserByEmailAsync(String email) in C:\Users\307438\Desktop\Projects\MEDICARE_1_repo\ClinicManagement\Backend\ClinicManagementAPI\Repositories\AuthRepository.cs:line 39
+   at ClinicManagementAPI.Services.AuthService.LoginAsync(LoginRequestDto dto) in C:\Users\307438\Desktop\Projects\MEDICARE_1_repo\ClinicManagement\Backend\ClinicManagementAPI\Services\AllServices.cs:line 76
+[2026-03-14 10:15:40 INF] Response: 401 for POST /api/Auth/login
+[2026-03-14 10:15:46 INF] Request: POST /api/Auth/login | IP: ::1
+[2026-03-14 10:15:46 INF] Response: 401 for POST /api/Auth/login
+[2026-03-14 10:15:54 INF] Request: POST /api/Auth/login | IP: ::1
+[2026-03-14 10:15:55 INF] Response: 401 for POST /api/Auth/login
+[2026-03-14 10:16:15 INF] Request: POST /api/Auth/login | IP: ::1
+[2026-03-14 10:16:15 ERR] An exception occurred while iterating over the results of a query for context type 'ClinicManagementAPI.Data.ClinicDbContext'.
+System.InvalidOperationException: The required column 'RoleId' was not present in the results of a 'FromSql' operation.
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.BuildIndexMap(IReadOnlyList`1 columnNames, DbDataReader dataReader)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+System.InvalidOperationException: The required column 'RoleId' was not present in the results of a 'FromSql' operation.
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.BuildIndexMap(IReadOnlyList`1 columnNames, DbDataReader dataReader)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+[2026-03-14 10:16:15 ERR] Login error for admin@clinic.com
+System.InvalidOperationException: The required column 'RoleId' was not present in the results of a 'FromSql' operation.
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.BuildIndexMap(IReadOnlyList`1 columnNames, DbDataReader dataReader)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at ClinicManagementAPI.Repositories.AuthRepository.GetUserByEmailAsync(String email) in C:\Users\307438\Desktop\Projects\MEDICARE_1_repo\ClinicManagement\Backend\ClinicManagementAPI\Repositories\AuthRepository.cs:line 39
+   at ClinicManagementAPI.Services.AuthService.LoginAsync(LoginRequestDto dto) in C:\Users\307438\Desktop\Projects\MEDICARE_1_repo\ClinicManagement\Backend\ClinicManagementAPI\Services\AllServices.cs:line 76
+[2026-03-14 10:16:15 INF] Response: 401 for POST /api/Auth/login
+[2026-03-14 10:16:23 INF] Request: GET /swagger/index.html | IP: ::1
+[2026-03-14 10:16:23 INF] Response: 200 for GET /swagger/index.html
+[2026-03-14 10:16:23 INF] Request: GET /swagger/index.js | IP: ::1
+[2026-03-14 10:16:23 INF] Response: 200 for GET /swagger/index.js
+[2026-03-14 10:16:24 INF] Request: GET /swagger/v1/swagger.json | IP: ::1
+[2026-03-14 10:16:24 INF] Response: 200 for GET /swagger/v1/swagger.json
+[2026-03-14 10:16:33 INF] Request: POST /api/Auth/login | IP: ::1
+[2026-03-14 10:16:34 ERR] An exception occurred while iterating over the results of a query for context type 'ClinicManagementAPI.Data.ClinicDbContext'.
+System.InvalidOperationException: The required column 'RoleId' was not present in the results of a 'FromSql' operation.
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.BuildIndexMap(IReadOnlyList`1 columnNames, DbDataReader dataReader)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+System.InvalidOperationException: The required column 'RoleId' was not present in the results of a 'FromSql' operation.
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.BuildIndexMap(IReadOnlyList`1 columnNames, DbDataReader dataReader)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+[2026-03-14 10:16:34 ERR] Login error for admin@clinic.com
+System.InvalidOperationException: The required column 'RoleId' was not present in the results of a 'FromSql' operation.
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.BuildIndexMap(IReadOnlyList`1 columnNames, DbDataReader dataReader)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.FromSqlQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at ClinicManagementAPI.Repositories.AuthRepository.GetUserByEmailAsync(String email) in C:\Users\307438\Desktop\Projects\MEDICARE_1_repo\ClinicManagement\Backend\ClinicManagementAPI\Repositories\AuthRepository.cs:line 39
+   at ClinicManagementAPI.Services.AuthService.LoginAsync(LoginRequestDto dto) in C:\Users\307438\Desktop\Projects\MEDICARE_1_repo\ClinicManagement\Backend\ClinicManagementAPI\Services\AllServices.cs:line 76
+[2026-03-14 10:16:34 INF] Response: 401 for POST /api/Auth/login
+[2026-03-14 10:34:50 INF] Request: OPTIONS /api/auth/login | IP: ::1
+[2026-03-14 10:34:50 INF] Response: 204 for OPTIONS /api/auth/login
+[2026-03-14 10:34:50 INF] Request: POST /api/auth/login | IP: ::1
+[2026-03-14 10:34:50 INF] Response: 401 for POST /api/auth/login
+[2026-03-14 10:39:18 INF] Request: POST /api/Auth/login | IP: ::1
+[2026-03-14 10:39:18 INF] Response: 200 for POST /api/Auth/login
+[2026-03-14 10:41:00 INF] Starting Clinic Management API...
+[2026-03-14 10:41:00 INF] Clinic Management API is running. Swagger: http://localhost:5000/swagger
+[2026-03-14 10:41:24 INF] Request: OPTIONS /api/auth/login | IP: ::1
+[2026-03-14 10:41:24 WRN] Failed to determine the https port for redirect.
+[2026-03-14 10:41:24 INF] Response: 204 for OPTIONS /api/auth/login
+[2026-03-14 10:41:24 INF] Request: POST /api/auth/login | IP: ::1
+[2026-03-14 10:41:28 INF] Response: 200 for POST /api/auth/login
+[2026-03-14 10:41:28 INF] Request: OPTIONS /api/admin/dashboard | IP: ::1
+[2026-03-14 10:41:28 INF] Request: OPTIONS /api/admin/dashboard | IP: ::1
+[2026-03-14 10:41:28 INF] Response: 204 for OPTIONS /api/admin/dashboard
+[2026-03-14 10:41:28 INF] Response: 204 for OPTIONS /api/admin/dashboard
+[2026-03-14 10:41:28 INF] Request: GET /api/admin/dashboard | IP: ::1
+[2026-03-14 10:41:28 INF] Response: 200 for GET /api/admin/dashboard
+[2026-03-14 10:41:28 INF] Request: GET /api/admin/dashboard | IP: ::1
+[2026-03-14 10:41:28 INF] Response: 200 for GET /api/admin/dashboard
+[2026-03-14 10:41:34 INF] Request: OPTIONS /api/admin/doctors | IP: ::1
+[2026-03-14 10:41:34 INF] Response: 204 for OPTIONS /api/admin/doctors
+[2026-03-14 10:41:34 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:41:34 INF] Request: OPTIONS /api/admin/doctors | IP: ::1
+[2026-03-14 10:41:34 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:41:34 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:41:34 INF] Request: GET /api/admin/doctors | IP: ::1
+[2026-03-14 10:41:34 INF] Response: 204 for OPTIONS /api/admin/doctors
+[2026-03-14 10:41:34 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:41:34 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:41:34 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:41:34 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:41:34 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:41:34 INF] Response: 200 for GET /api/admin/doctors
+[2026-03-14 10:41:34 INF] Request: GET /api/admin/doctors | IP: ::1
+[2026-03-14 10:41:34 INF] Response: 200 for GET /api/admin/doctors
+[2026-03-14 10:41:44 INF] Request: OPTIONS /api/admin/patients | IP: ::1
+[2026-03-14 10:41:44 INF] Request: OPTIONS /api/admin/patients | IP: ::1
+[2026-03-14 10:41:44 INF] Response: 204 for OPTIONS /api/admin/patients
+[2026-03-14 10:41:44 INF] Response: 204 for OPTIONS /api/admin/patients
+[2026-03-14 10:41:44 INF] Request: GET /api/admin/patients | IP: ::1
+[2026-03-14 10:41:44 INF] Response: 200 for GET /api/admin/patients
+[2026-03-14 10:41:44 INF] Request: GET /api/admin/patients | IP: ::1
+[2026-03-14 10:41:44 INF] Response: 200 for GET /api/admin/patients
+[2026-03-14 10:41:47 INF] Request: OPTIONS /api/admin/dashboard | IP: ::1
+[2026-03-14 10:41:47 INF] Request: OPTIONS /api/admin/dashboard | IP: ::1
+[2026-03-14 10:41:47 INF] Response: 204 for OPTIONS /api/admin/dashboard
+[2026-03-14 10:41:47 INF] Response: 204 for OPTIONS /api/admin/dashboard
+[2026-03-14 10:41:47 INF] Request: GET /api/admin/dashboard | IP: ::1
+[2026-03-14 10:41:47 INF] Response: 200 for GET /api/admin/dashboard
+[2026-03-14 10:41:47 INF] Request: GET /api/admin/dashboard | IP: ::1
+[2026-03-14 10:41:47 INF] Response: 200 for GET /api/admin/dashboard
+[2026-03-14 10:42:10 INF] Request: OPTIONS /api/admin/doctors | IP: ::1
+[2026-03-14 10:42:10 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:42:10 INF] Request: OPTIONS /api/admin/doctors | IP: ::1
+[2026-03-14 10:42:10 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:42:10 INF] Response: 204 for OPTIONS /api/admin/doctors
+[2026-03-14 10:42:10 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:42:10 INF] Response: 204 for OPTIONS /api/admin/doctors
+[2026-03-14 10:42:10 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:42:10 INF] Request: GET /api/admin/doctors | IP: ::1
+[2026-03-14 10:42:10 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:42:10 INF] Response: 200 for GET /api/admin/doctors
+[2026-03-14 10:42:10 INF] Request: GET /api/admin/doctors | IP: ::1
+[2026-03-14 10:42:10 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:42:10 INF] Response: 200 for GET /api/admin/doctors
+[2026-03-14 10:42:10 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:42:10 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:42:12 INF] Request: OPTIONS /api/admin/patients | IP: ::1
+[2026-03-14 10:42:12 INF] Request: OPTIONS /api/admin/patients | IP: ::1
+[2026-03-14 10:42:12 INF] Response: 204 for OPTIONS /api/admin/patients
+[2026-03-14 10:42:12 INF] Response: 204 for OPTIONS /api/admin/patients
+[2026-03-14 10:42:12 INF] Request: GET /api/admin/patients | IP: ::1
+[2026-03-14 10:42:12 INF] Response: 200 for GET /api/admin/patients
+[2026-03-14 10:42:12 INF] Request: GET /api/admin/patients | IP: ::1
+[2026-03-14 10:42:12 INF] Response: 200 for GET /api/admin/patients
+[2026-03-14 10:42:20 INF] Request: OPTIONS /api/admin/dashboard | IP: ::1
+[2026-03-14 10:42:20 INF] Request: OPTIONS /api/admin/dashboard | IP: ::1
+[2026-03-14 10:42:20 INF] Response: 204 for OPTIONS /api/admin/dashboard
+[2026-03-14 10:42:20 INF] Response: 204 for OPTIONS /api/admin/dashboard
+[2026-03-14 10:42:20 INF] Request: GET /api/admin/dashboard | IP: ::1
+[2026-03-14 10:42:20 INF] Response: 200 for GET /api/admin/dashboard
+[2026-03-14 10:42:20 INF] Request: GET /api/admin/dashboard | IP: ::1
+[2026-03-14 10:42:20 INF] Response: 200 for GET /api/admin/dashboard
+[2026-03-14 10:42:23 INF] Request: OPTIONS /api/auth/logout | IP: ::1
+[2026-03-14 10:42:23 INF] Response: 204 for OPTIONS /api/auth/logout
+[2026-03-14 10:42:23 INF] Request: POST /api/auth/logout | IP: ::1
+[2026-03-14 10:42:23 INF] Response: 200 for POST /api/auth/logout
+[2026-03-14 10:43:58 INF] Request: OPTIONS /api/auth/register | IP: ::1
+[2026-03-14 10:43:58 INF] Response: 204 for OPTIONS /api/auth/register
+[2026-03-14 10:43:58 INF] Request: POST /api/auth/register | IP: ::1
+[2026-03-14 10:43:59 INF] Response: 200 for POST /api/auth/register
+[2026-03-14 10:43:59 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 10:43:59 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 10:43:59 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 10:43:59 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 10:43:59 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:43:59 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 10:43:59 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:43:59 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 10:44:09 INF] Request: OPTIONS /api/patient/profile | IP: ::1
+[2026-03-14 10:44:09 INF] Request: OPTIONS /api/patient/profile | IP: ::1
+[2026-03-14 10:44:09 INF] Response: 204 for OPTIONS /api/patient/profile
+[2026-03-14 10:44:09 INF] Response: 204 for OPTIONS /api/patient/profile
+[2026-03-14 10:44:09 INF] Request: GET /api/patient/profile | IP: ::1
+[2026-03-14 10:44:09 INF] Response: 200 for GET /api/patient/profile
+[2026-03-14 10:44:09 INF] Request: GET /api/patient/profile | IP: ::1
+[2026-03-14 10:44:09 INF] Response: 200 for GET /api/patient/profile
+[2026-03-14 10:44:25 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 10:44:25 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 10:44:25 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 10:44:25 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 10:44:25 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:44:25 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 10:44:25 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:44:25 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 10:44:28 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:44:28 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:44:28 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:44:28 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:44:28 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:44:28 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:44:28 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:44:28 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:44:40 INF] Request: OPTIONS /api/doctor | IP: ::1
+[2026-03-14 10:44:40 INF] Response: 204 for OPTIONS /api/doctor
+[2026-03-14 10:44:40 INF] Request: GET /api/doctor | IP: ::1
+[2026-03-14 10:44:40 INF] Response: 200 for GET /api/doctor
+[2026-03-14 10:44:46 INF] Request: OPTIONS /api/doctor | IP: ::1
+[2026-03-14 10:44:46 INF] Response: 204 for OPTIONS /api/doctor
+[2026-03-14 10:44:46 INF] Request: GET /api/doctor | IP: ::1
+[2026-03-14 10:44:46 INF] Response: 200 for GET /api/doctor
+[2026-03-14 10:44:48 INF] Request: OPTIONS /api/doctor | IP: ::1
+[2026-03-14 10:44:48 INF] Response: 204 for OPTIONS /api/doctor
+[2026-03-14 10:44:48 INF] Request: GET /api/doctor | IP: ::1
+[2026-03-14 10:44:48 INF] Response: 200 for GET /api/doctor
+[2026-03-14 10:44:51 INF] Request: OPTIONS /api/doctor | IP: ::1
+[2026-03-14 10:44:51 INF] Response: 204 for OPTIONS /api/doctor
+[2026-03-14 10:44:51 INF] Request: GET /api/doctor | IP: ::1
+[2026-03-14 10:44:51 INF] Response: 200 for GET /api/doctor
+[2026-03-14 10:44:55 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 10:44:55 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 10:44:55 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 10:44:55 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 10:44:55 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:44:55 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 10:44:55 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:44:55 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 10:44:59 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:44:59 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 10:44:59 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:44:59 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 10:45:12 INF] Request: OPTIONS /api/patient/profile | IP: ::1
+[2026-03-14 10:45:12 INF] Request: OPTIONS /api/patient/profile | IP: ::1
+[2026-03-14 10:45:12 INF] Response: 204 for OPTIONS /api/patient/profile
+[2026-03-14 10:45:12 INF] Response: 204 for OPTIONS /api/patient/profile
+[2026-03-14 10:45:12 INF] Request: GET /api/patient/profile | IP: ::1
+[2026-03-14 10:45:12 INF] Response: 200 for GET /api/patient/profile
+[2026-03-14 10:45:12 INF] Request: GET /api/patient/profile | IP: ::1
+[2026-03-14 10:45:12 INF] Response: 200 for GET /api/patient/profile
+[2026-03-14 10:45:16 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:45:16 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:45:16 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:45:16 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:45:16 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:45:16 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:45:16 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:45:16 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:45:19 INF] Request: OPTIONS /api/doctor | IP: ::1
+[2026-03-14 10:45:19 INF] Response: 204 for OPTIONS /api/doctor
+[2026-03-14 10:45:19 INF] Request: GET /api/doctor | IP: ::1
+[2026-03-14 10:45:19 INF] Response: 200 for GET /api/doctor
+[2026-03-14 10:47:30 INF] Request: OPTIONS /api/patient/profile | IP: ::1
+[2026-03-14 10:47:30 INF] Request: OPTIONS /api/patient/profile | IP: ::1
+[2026-03-14 10:47:30 INF] Response: 204 for OPTIONS /api/patient/profile
+[2026-03-14 10:47:30 INF] Response: 204 for OPTIONS /api/patient/profile
+[2026-03-14 10:47:30 INF] Request: GET /api/patient/profile | IP: ::1
+[2026-03-14 10:47:30 INF] Response: 200 for GET /api/patient/profile
+[2026-03-14 10:47:30 INF] Request: GET /api/patient/profile | IP: ::1
+[2026-03-14 10:47:30 INF] Response: 200 for GET /api/patient/profile
+[2026-03-14 10:47:37 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:47:37 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:47:37 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:47:37 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:47:37 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:47:37 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:47:37 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:47:37 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:47:38 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 10:47:38 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 10:47:38 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 10:47:38 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 10:47:38 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:47:38 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 10:47:38 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:47:38 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 10:47:42 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:47:42 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:47:42 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:47:42 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:47:44 INF] Request: OPTIONS /api/doctor | IP: ::1
+[2026-03-14 10:47:44 INF] Response: 204 for OPTIONS /api/doctor
+[2026-03-14 10:47:44 INF] Request: GET /api/doctor | IP: ::1
+[2026-03-14 10:47:44 INF] Response: 200 for GET /api/doctor
+[2026-03-14 10:49:00 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:49:00 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 10:49:00 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:49:00 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 10:49:01 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:49:01 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:49:01 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 10:49:01 INF] Response: 200 for GET /api/specializations
+[2026-03-14 10:49:03 INF] Request: OPTIONS /api/doctor | IP: ::1
+[2026-03-14 10:49:03 INF] Response: 204 for OPTIONS /api/doctor
+[2026-03-14 10:49:03 INF] Request: GET /api/doctor | IP: ::1
+[2026-03-14 10:49:03 INF] Response: 200 for GET /api/doctor
+[2026-03-14 10:49:39 INF] Request: OPTIONS /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:49:39 INF] Response: 204 for OPTIONS /api/doctor/4/available-slots
+[2026-03-14 10:49:39 INF] Request: GET /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:49:39 INF] Response: 400 for GET /api/doctor/4/available-slots
+[2026-03-14 10:49:40 INF] Request: OPTIONS /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:49:40 INF] Response: 204 for OPTIONS /api/doctor/4/available-slots
+[2026-03-14 10:49:40 INF] Request: GET /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:49:40 INF] Response: 400 for GET /api/doctor/4/available-slots
+[2026-03-14 10:49:40 INF] Request: OPTIONS /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:49:40 INF] Response: 204 for OPTIONS /api/doctor/4/available-slots
+[2026-03-14 10:49:40 INF] Request: GET /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:49:40 INF] Response: 400 for GET /api/doctor/4/available-slots
+[2026-03-14 10:49:40 INF] Request: OPTIONS /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:49:40 INF] Response: 204 for OPTIONS /api/doctor/4/available-slots
+[2026-03-14 10:49:40 INF] Request: GET /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:49:40 INF] Response: 200 for GET /api/doctor/4/available-slots
+[2026-03-14 10:49:55 INF] Request: OPTIONS /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:49:55 INF] Response: 204 for OPTIONS /api/doctor/4/available-slots
+[2026-03-14 10:49:55 INF] Request: GET /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:49:55 INF] Response: 400 for GET /api/doctor/4/available-slots
+[2026-03-14 10:50:03 INF] Request: OPTIONS /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:50:03 INF] Response: 204 for OPTIONS /api/doctor/4/available-slots
+[2026-03-14 10:50:03 INF] Request: GET /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:50:03 INF] Response: 400 for GET /api/doctor/4/available-slots
+[2026-03-14 10:50:04 INF] Request: OPTIONS /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:50:04 INF] Response: 204 for OPTIONS /api/doctor/4/available-slots
+[2026-03-14 10:50:04 INF] Request: GET /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:50:04 INF] Response: 400 for GET /api/doctor/4/available-slots
+[2026-03-14 10:50:05 INF] Request: OPTIONS /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:50:05 INF] Response: 204 for OPTIONS /api/doctor/4/available-slots
+[2026-03-14 10:50:05 INF] Request: GET /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:50:05 INF] Response: 400 for GET /api/doctor/4/available-slots
+[2026-03-14 10:50:05 INF] Request: OPTIONS /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:50:05 INF] Response: 204 for OPTIONS /api/doctor/4/available-slots
+[2026-03-14 10:50:05 INF] Request: GET /api/doctor/4/available-slots | IP: ::1
+[2026-03-14 10:50:05 INF] Response: 200 for GET /api/doctor/4/available-slots
+[2026-03-14 10:50:24 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 10:50:24 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 10:50:24 INF] Request: POST /api/patient/appointments | IP: ::1
+[2026-03-14 10:50:24 INF] Response: 201 for POST /api/patient/appointments
+[2026-03-14 10:50:24 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:50:24 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 10:50:24 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 10:50:24 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 11:05:47 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 11:05:47 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 11:05:47 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 11:05:47 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 11:05:47 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 11:05:47 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 11:05:47 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 11:05:47 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 11:06:13 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 11:06:13 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 11:06:13 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 11:06:13 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 11:06:13 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 11:06:13 INF] Response: 200 for GET /api/specializations
+[2026-03-14 11:06:13 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 11:06:13 INF] Response: 200 for GET /api/specializations
+[2026-03-14 11:06:15 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 11:06:15 INF] Request: OPTIONS /api/patient/appointments | IP: ::1
+[2026-03-14 11:06:15 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 11:06:15 INF] Response: 204 for OPTIONS /api/patient/appointments
+[2026-03-14 11:06:15 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 11:06:15 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 11:06:15 INF] Request: GET /api/patient/appointments | IP: ::1
+[2026-03-14 11:06:15 INF] Response: 200 for GET /api/patient/appointments
+[2026-03-14 11:06:19 INF] Request: OPTIONS /api/auth/logout | IP: ::1
+[2026-03-14 11:06:19 INF] Response: 204 for OPTIONS /api/auth/logout
+[2026-03-14 11:06:19 INF] Request: POST /api/auth/logout | IP: ::1
+[2026-03-14 11:06:19 INF] Response: 200 for POST /api/auth/logout
+[2026-03-14 11:06:29 INF] Request: OPTIONS /api/auth/login | IP: ::1
+[2026-03-14 11:06:29 INF] Response: 204 for OPTIONS /api/auth/login
+[2026-03-14 11:06:29 INF] Request: POST /api/auth/login | IP: ::1
+[2026-03-14 11:06:30 INF] Response: 200 for POST /api/auth/login
+[2026-03-14 11:06:30 INF] Request: OPTIONS /api/admin/dashboard | IP: ::1
+[2026-03-14 11:06:30 INF] Request: OPTIONS /api/admin/dashboard | IP: ::1
+[2026-03-14 11:06:30 INF] Response: 204 for OPTIONS /api/admin/dashboard
+[2026-03-14 11:06:30 INF] Response: 204 for OPTIONS /api/admin/dashboard
+[2026-03-14 11:06:30 INF] Request: GET /api/admin/dashboard | IP: ::1
+[2026-03-14 11:06:30 INF] Response: 200 for GET /api/admin/dashboard
+[2026-03-14 11:06:30 INF] Request: GET /api/admin/dashboard | IP: ::1
+[2026-03-14 11:06:30 INF] Response: 200 for GET /api/admin/dashboard
+[2026-03-14 11:06:32 INF] Request: OPTIONS /api/admin/doctors | IP: ::1
+[2026-03-14 11:06:32 INF] Response: 204 for OPTIONS /api/admin/doctors
+[2026-03-14 11:06:32 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 11:06:32 INF] Request: OPTIONS /api/admin/doctors | IP: ::1
+[2026-03-14 11:06:32 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 11:06:32 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 11:06:32 INF] Request: GET /api/admin/doctors | IP: ::1
+[2026-03-14 11:06:32 INF] Response: 204 for OPTIONS /api/admin/doctors
+[2026-03-14 11:06:32 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 11:06:32 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 11:06:32 INF] Response: 200 for GET /api/admin/doctors
+[2026-03-14 11:06:32 INF] Request: GET /api/admin/doctors | IP: ::1
+[2026-03-14 11:06:32 INF] Response: 200 for GET /api/admin/doctors
+[2026-03-14 11:06:32 INF] Response: 200 for GET /api/specializations
+[2026-03-14 11:06:32 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 11:06:32 INF] Response: 200 for GET /api/specializations
+[2026-03-14 11:06:38 INF] Request: OPTIONS /api/admin/patients | IP: ::1
+[2026-03-14 11:06:38 INF] Request: OPTIONS /api/admin/patients | IP: ::1
+[2026-03-14 11:06:38 INF] Response: 204 for OPTIONS /api/admin/patients
+[2026-03-14 11:06:38 INF] Response: 204 for OPTIONS /api/admin/patients
+[2026-03-14 11:06:38 INF] Request: GET /api/admin/patients | IP: ::1
+[2026-03-14 11:06:38 INF] Response: 200 for GET /api/admin/patients
+[2026-03-14 11:06:38 INF] Request: GET /api/admin/patients | IP: ::1
+[2026-03-14 11:06:38 INF] Response: 200 for GET /api/admin/patients
+[2026-03-14 11:06:42 INF] Request: OPTIONS /api/admin/patients/2 | IP: ::1
+[2026-03-14 11:06:42 INF] Response: 204 for OPTIONS /api/admin/patients/2
+[2026-03-14 11:06:42 INF] Request: GET /api/admin/patients/2 | IP: ::1
+[2026-03-14 11:06:42 INF] Response: 200 for GET /api/admin/patients/2
+[2026-03-14 11:06:46 INF] Request: OPTIONS /api/admin/dashboard | IP: ::1
+[2026-03-14 11:06:46 INF] Response: 204 for OPTIONS /api/admin/dashboard
+[2026-03-14 11:06:46 INF] Request: OPTIONS /api/admin/dashboard | IP: ::1
+[2026-03-14 11:06:46 INF] Request: GET /api/admin/dashboard | IP: ::1
+[2026-03-14 11:06:46 INF] Response: 204 for OPTIONS /api/admin/dashboard
+[2026-03-14 11:06:46 INF] Response: 200 for GET /api/admin/dashboard
+[2026-03-14 11:06:46 INF] Request: GET /api/admin/dashboard | IP: ::1
+[2026-03-14 11:06:46 INF] Response: 200 for GET /api/admin/dashboard
+[2026-03-14 11:07:10 INF] Request: OPTIONS /api/admin/patients | IP: ::1
+[2026-03-14 11:07:10 INF] Request: OPTIONS /api/admin/patients | IP: ::1
+[2026-03-14 11:07:10 INF] Response: 204 for OPTIONS /api/admin/patients
+[2026-03-14 11:07:10 INF] Response: 204 for OPTIONS /api/admin/patients
+[2026-03-14 11:07:10 INF] Request: GET /api/admin/patients | IP: ::1
+[2026-03-14 11:07:10 INF] Response: 200 for GET /api/admin/patients
+[2026-03-14 11:07:10 INF] Request: GET /api/admin/patients | IP: ::1
+[2026-03-14 11:07:10 INF] Response: 200 for GET /api/admin/patients
+[2026-03-14 11:07:11 INF] Request: OPTIONS /api/admin/doctors | IP: ::1
+[2026-03-14 11:07:11 INF] Request: OPTIONS /api/admin/doctors | IP: ::1
+[2026-03-14 11:07:11 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 11:07:11 INF] Response: 204 for OPTIONS /api/admin/doctors
+[2026-03-14 11:07:11 INF] Request: OPTIONS /api/specializations | IP: ::1
+[2026-03-14 11:07:11 INF] Response: 204 for OPTIONS /api/admin/doctors
+[2026-03-14 11:07:11 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 11:07:11 INF] Response: 204 for OPTIONS /api/specializations
+[2026-03-14 11:07:11 INF] Request: GET /api/admin/doctors | IP: ::1
+[2026-03-14 11:07:11 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 11:07:11 INF] Response: 200 for GET /api/specializations
+[2026-03-14 11:07:11 INF] Request: GET /api/specializations | IP: ::1
+[2026-03-14 11:07:11 INF] Response: 200 for GET /api/admin/doctors
+[2026-03-14 11:07:11 INF] Request: GET /api/admin/doctors | IP: ::1
+[2026-03-14 11:07:11 INF] Response: 200 for GET /api/specializations
+[2026-03-14 11:07:11 INF] Response: 200 for GET /api/admin/doctors
+[2026-03-14 11:08:27 INF] Request: OPTIONS /api/auth/logout | IP: ::1
+[2026-03-14 11:08:27 INF] Response: 204 for OPTIONS /api/auth/logout
+[2026-03-14 11:08:27 INF] Request: POST /api/auth/logout | IP: ::1
+[2026-03-14 11:08:27 INF] Response: 200 for POST /api/auth/logout
+[2026-03-14 11:08:35 INF] Request: OPTIONS /api/auth/login | IP: ::1
+[2026-03-14 11:08:35 INF] Response: 204 for OPTIONS /api/auth/login
+[2026-03-14 11:08:35 INF] Request: POST /api/auth/login | IP: ::1
+[2026-03-14 11:08:35 INF] Response: 401 for POST /api/auth/login
+[2026-03-14 11:08:54 INF] Request: OPTIONS /api/auth/login | IP: ::1
+[2026-03-14 11:08:54 INF] Response: 204 for OPTIONS /api/auth/login
+[2026-03-14 11:08:54 INF] Request: POST /api/auth/login | IP: ::1
+[2026-03-14 11:08:54 INF] Response: 401 for POST /api/auth/login
+[2026-03-14 11:09:12 INF] Request: OPTIONS /api/auth/login | IP: ::1
+[2026-03-14 11:09:12 INF] Response: 204 for OPTIONS /api/auth/login
+[2026-03-14 11:09:12 INF] Request: POST /api/auth/login | IP: ::1
+[2026-03-14 11:09:12 INF] Response: 401 for POST /api/auth/login
+[2026-03-14 11:12:06 INF] Request: OPTIONS /api/auth/login | IP: ::1
+[2026-03-14 11:12:06 INF] Response: 204 for OPTIONS /api/auth/login
+[2026-03-14 11:12:06 INF] Request: POST /api/auth/login | IP: ::1
+[2026-03-14 11:12:06 INF] Response: 200 for POST /api/auth/login
+[2026-03-14 11:12:07 INF] Request: OPTIONS /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:07 INF] Request: OPTIONS /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:07 INF] Response: 204 for OPTIONS /api/doctor/profile
+[2026-03-14 11:12:07 INF] Response: 204 for OPTIONS /api/doctor/profile
+[2026-03-14 11:12:07 INF] Request: GET /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:07 INF] Response: 200 for GET /api/doctor/profile
+[2026-03-14 11:12:07 INF] Request: GET /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:07 INF] Request: OPTIONS /api/doctor/4/appointments | IP: ::1
+[2026-03-14 11:12:07 INF] Response: 204 for OPTIONS /api/doctor/4/appointments
+[2026-03-14 11:12:07 INF] Response: 200 for GET /api/doctor/profile
+[2026-03-14 11:12:07 INF] Request: GET /api/doctor/4/appointments | IP: ::1
+[2026-03-14 11:12:07 INF] Response: 200 for GET /api/doctor/4/appointments
+[2026-03-14 11:12:07 INF] Request: GET /api/doctor/4/appointments | IP: ::1
+[2026-03-14 11:12:07 INF] Response: 200 for GET /api/doctor/4/appointments
+[2026-03-14 11:12:10 INF] Request: GET /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:10 INF] Response: 200 for GET /api/doctor/profile
+[2026-03-14 11:12:10 INF] Request: GET /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:10 INF] Request: GET /api/doctor/4/appointments | IP: ::1
+[2026-03-14 11:12:10 INF] Response: 200 for GET /api/doctor/profile
+[2026-03-14 11:12:10 INF] Response: 200 for GET /api/doctor/4/appointments
+[2026-03-14 11:12:10 INF] Request: GET /api/doctor/4/appointments | IP: ::1
+[2026-03-14 11:12:10 INF] Response: 200 for GET /api/doctor/4/appointments
+[2026-03-14 11:12:14 INF] Request: OPTIONS /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:12:14 INF] Response: 204 for OPTIONS /api/doctor/appointments/1/status
+[2026-03-14 11:12:14 INF] Request: PUT /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:12:14 INF] Response: 404 for PUT /api/doctor/appointments/1/status
+[2026-03-14 11:12:15 INF] Request: PUT /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:12:15 INF] Response: 404 for PUT /api/doctor/appointments/1/status
+[2026-03-14 11:12:20 INF] Request: OPTIONS /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:20 INF] Request: OPTIONS /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:20 INF] Response: 204 for OPTIONS /api/doctor/profile
+[2026-03-14 11:12:20 INF] Response: 204 for OPTIONS /api/doctor/profile
+[2026-03-14 11:12:20 INF] Request: GET /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:20 INF] Response: 200 for GET /api/doctor/profile
+[2026-03-14 11:12:20 INF] Request: GET /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:20 INF] Response: 200 for GET /api/doctor/profile
+[2026-03-14 11:12:26 INF] Request: OPTIONS /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:26 INF] Request: OPTIONS /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:26 INF] Response: 204 for OPTIONS /api/doctor/profile
+[2026-03-14 11:12:26 INF] Response: 204 for OPTIONS /api/doctor/profile
+[2026-03-14 11:12:26 INF] Request: GET /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:26 INF] Response: 200 for GET /api/doctor/profile
+[2026-03-14 11:12:26 INF] Request: GET /api/doctor/profile | IP: ::1
+[2026-03-14 11:12:26 INF] Response: 200 for GET /api/doctor/profile
+[2026-03-14 11:12:26 INF] Request: OPTIONS /api/doctor/4/appointments | IP: ::1
+[2026-03-14 11:12:26 INF] Response: 204 for OPTIONS /api/doctor/4/appointments
+[2026-03-14 11:12:26 INF] Request: OPTIONS /api/doctor/4/appointments | IP: ::1
+[2026-03-14 11:12:26 INF] Response: 204 for OPTIONS /api/doctor/4/appointments
+[2026-03-14 11:12:26 INF] Request: GET /api/doctor/4/appointments | IP: ::1
+[2026-03-14 11:12:26 INF] Response: 200 for GET /api/doctor/4/appointments
+[2026-03-14 11:12:26 INF] Request: GET /api/doctor/4/appointments | IP: ::1
+[2026-03-14 11:12:26 INF] Response: 200 for GET /api/doctor/4/appointments
+[2026-03-14 11:12:30 INF] Request: OPTIONS /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:12:30 INF] Response: 204 for OPTIONS /api/doctor/appointments/1/status
+[2026-03-14 11:12:30 INF] Request: PUT /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:12:30 INF] Response: 404 for PUT /api/doctor/appointments/1/status
+[2026-03-14 11:14:10 INF] Request: OPTIONS /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:14:10 INF] Response: 204 for OPTIONS /api/doctor/appointments/1/status
+[2026-03-14 11:14:10 INF] Request: PUT /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:14:10 INF] Response: 404 for PUT /api/doctor/appointments/1/status
+[2026-03-14 11:14:12 INF] Request: PUT /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:14:12 INF] Response: 404 for PUT /api/doctor/appointments/1/status
+[2026-03-14 11:14:16 INF] Request: OPTIONS /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:14:16 INF] Response: 204 for OPTIONS /api/doctor/appointments/1/status
+[2026-03-14 11:14:16 INF] Request: PUT /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:14:16 INF] Response: 404 for PUT /api/doctor/appointments/1/status
+[2026-03-14 11:19:12 INF] Request: OPTIONS /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:19:12 INF] Response: 204 for OPTIONS /api/doctor/appointments/1/status
+[2026-03-14 11:19:12 INF] Request: PUT /api/doctor/appointments/1/status | IP: ::1
+[2026-03-14 11:19:12 INF] Response: 404 for PUT /api/doctor/appointments/1/status

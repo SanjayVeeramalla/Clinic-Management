@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ClinicManagement.API</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Password hashing — framework-agnostic, no change needed -->
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+
+    <!-- JWT Auth — must match target framework major version -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0-preview.2.25164.1" />
+
+    <!-- EF Core — must match target framework major version -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore"           Version="9.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools"     Version="9.0.3">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+
+    <!-- JWT token handling — compatible with JwtBearer above -->
+    <PackageReference Include="Microsoft.IdentityModel.Tokens"   Version="8.7.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt"  Version="8.7.0" />
+
+    <!-- Serilog — framework-agnostic, stable versions -->
+    <PackageReference Include="Serilog.AspNetCore"    Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.File"    Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+
+    <!-- Swagger -->
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.3.1" />
+  </ItemGroup>
+
+</Project>

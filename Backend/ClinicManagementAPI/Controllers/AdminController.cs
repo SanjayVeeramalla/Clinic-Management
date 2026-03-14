@@ -1,12 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ClinicManagementAPI.DTOs;
-using ClinicManagementAPI.DTOs.Doctor;
-using ClinicManagementAPI.Services.Interfaces;
-using ClinicManagementAPI.DTOs.Admin;
+using ClinicManagement.API.DTOs.Admin;
+using ClinicManagement.API.DTOs.Admin;
+using ClinicManagement.API.DTOs.Doctor;
+using ClinicManagement.API.Services.Interfaces;
 
-
-namespace ClinicManagementAPI.Controllers;
+namespace ClinicManagement.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -17,13 +16,17 @@ public class AdminController : ControllerBase
     private readonly IDoctorService _doctorService;
     private readonly IPatientService _patientService;
 
-    public AdminController(IAdminService adminService, IDoctorService doctorService, IPatientService patientService)
+    public AdminController(
+        IAdminService adminService,
+        IDoctorService doctorService,
+        IPatientService patientService)
     {
         _adminService = adminService;
         _doctorService = doctorService;
         _patientService = patientService;
     }
 
+    /// <summary>Get system overview stats</summary>
     [HttpGet("dashboard")]
     public async Task<IActionResult> GetDashboard()
     {
@@ -31,6 +34,9 @@ public class AdminController : ControllerBase
         return Ok(result);
     }
 
+    // ─── Doctors ────────────────────────────────────────────
+
+    /// <summary>List all doctors</summary>
     [HttpGet("doctors")]
     public async Task<IActionResult> GetAllDoctors()
     {
@@ -38,13 +44,28 @@ public class AdminController : ControllerBase
         return Ok(result);
     }
 
-    [HttpPost("doctors")]
-    public async Task<IActionResult> CreateDoctor([FromBody] CreateDoctorDto dto)
+    /// <summary>
+    /// Create a full Doctor account (User + Doctor profile) in one step.
+    /// Only Admin can create doctors — doctors cannot self-register.
+    /// </summary>
+    [HttpPost("doctors/create-account")]
+    public async Task<IActionResult> CreateDoctorAccount([FromBody] CreateDoctorAccountDto dto)
     {
-        var result = await _doctorService.CreateDoctorAsync(dto);
+        var result = await _adminService.CreateDoctorAccountAsync(dto);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    /// <summary>Update a doctor's details</summary>
+    [HttpPut("doctors/{doctorId:int}")]
+    public async Task<IActionResult> UpdateDoctor(int doctorId, [FromBody] UpdateDoctorDto dto)
+    {
+        var result = await _doctorService.UpdateDoctorAsync(doctorId, dto);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    // ─── Patients ────────────────────────────────────────────
+
+    /// <summary>List all patients, with optional search</summary>
     [HttpGet("patients")]
     public async Task<IActionResult> GetAllPatients([FromQuery] string? search)
     {
@@ -52,6 +73,7 @@ public class AdminController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Get a single patient's full details</summary>
     [HttpGet("patients/{patientId:int}")]
     public async Task<IActionResult> GetPatient(int patientId)
     {
@@ -59,6 +81,9 @@ public class AdminController : ControllerBase
         return result.Success ? Ok(result) : NotFound(result);
     }
 
+    // ─── User management ─────────────────────────────────────
+
+    /// <summary>Deactivate a user (and cancel their future appointments if a doctor)</summary>
     [HttpPut("users/{userId:int}/deactivate")]
     public async Task<IActionResult> DeactivateUser(int userId)
     {
@@ -66,6 +91,9 @@ public class AdminController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    // ─── Reports ─────────────────────────────────────────────
+
+    /// <summary>Appointment status summary for a date range</summary>
     [HttpPost("reports/appointments")]
     public async Task<IActionResult> AppointmentSummaryReport([FromBody] ReportRequestDto dto)
     {
@@ -73,6 +101,7 @@ public class AdminController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    /// <summary>Doctor workload report for a date range</summary>
     [HttpPost("reports/doctor-workload")]
     public async Task<IActionResult> DoctorWorkloadReport([FromBody] ReportRequestDto dto)
     {

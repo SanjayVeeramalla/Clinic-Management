@@ -1,10 +1,10 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using ClinicManagementAPI.Data;
-using ClinicManagementAPI.DTOs.Auth;
-using ClinicManagementAPI.Repositories.Interfaces;
+using ClinicManagement.API.Data;
+using ClinicManagement.API.DTOs.Auth;
+using ClinicManagement.API.Repositories.Interfaces;
 
-namespace ClinicManagementAPI.Repositories;
+namespace ClinicManagement.API.Repositories;
 
 public class AuthRepository : IAuthRepository
 {
@@ -15,18 +15,20 @@ public class AuthRepository : IAuthRepository
         _context = context;
     }
 
-    public async Task<(int UserId, string Message)> RegisterUserAsync(RegisterRequestDto dto, string passwordHash)
+    // No role parameter — sp_RegisterUser always registers as Patient internally.
+    // The SP itself looks up the Patient RoleId; nothing is passed from C#.
+    public async Task<(int UserId, string Message)> RegisterUserAsync(
+        RegisterRequestDto dto, string passwordHash)
     {
-        var userIdParam = new SqlParameter("@UserId", System.Data.SqlDbType.Int) { Direction = System.Data.ParameterDirection.Output };
+        var userIdParam  = new SqlParameter("@UserId",  System.Data.SqlDbType.Int)          { Direction = System.Data.ParameterDirection.Output };
         var messageParam = new SqlParameter("@Message", System.Data.SqlDbType.NVarChar, 200) { Direction = System.Data.ParameterDirection.Output };
 
         await _context.Database.ExecuteSqlRawAsync(
-            "EXEC sp_RegisterUser @FullName, @Email, @PasswordHash, @Phone, @RoleName, @UserId OUTPUT, @Message OUTPUT",
-            new SqlParameter("@FullName", dto.FullName),
-            new SqlParameter("@Email", dto.Email),
+            "EXEC sp_RegisterUser @FullName, @Email, @PasswordHash, @Phone, @UserId OUTPUT, @Message OUTPUT",
+            new SqlParameter("@FullName",     dto.FullName),
+            new SqlParameter("@Email",        dto.Email),
             new SqlParameter("@PasswordHash", passwordHash),
-            new SqlParameter("@Phone", (object?)dto.Phone ?? DBNull.Value),
-            new SqlParameter("@RoleName", dto.Role),
+            new SqlParameter("@Phone",        (object?)dto.Phone ?? DBNull.Value),
             userIdParam,
             messageParam
         );

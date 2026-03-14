@@ -1,0 +1,406 @@
+using Moq;
+using NUnit.Framework;
+using FluentAssertions;
+using ClinicManagement.API.DTOs.Appointment;
+using ClinicManagement.API.DTOs.Doctor;
+using ClinicManagement.API.DTOs.Patient;
+using ClinicManagement.API.Repositories.Interfaces;
+using ClinicManagement.API.Services;
+
+namespace ClinicManagement.Tests.Services;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AppointmentServiceTests  (14 tests)
+// Tests: BookAppointment, GetPatientAppointments, CancelAppointment,
+//        UpdateAppointmentStatus, AddPrescription, GetAppointmentById
+// ─────────────────────────────────────────────────────────────────────────────
+[TestFixture]
+public class AppointmentServiceTests
+{
+    private Mock<IAppointmentRepository> _appointmentRepo = null!;
+    private Mock<IPatientRepository>     _patientRepo     = null!;
+    private AppointmentService           _sut             = null!;
+
+    // Reusable patient stub
+    private readonly PatientResponseDto _patient = new()
+    {
+        PatientId = 1, UserId = 5, FullName = "Jay Patel", Email = "jay@test.com"
+    };
+
+    [SetUp]
+    public void SetUp()
+    {
+        _appointmentRepo = new Mock<IAppointmentRepository>();
+        _patientRepo     = new Mock<IPatientRepository>();
+        _sut = new AppointmentService(_appointmentRepo.Object, _patientRepo.Object);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // BOOK APPOINTMENT
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Happy path: valid patient + available slot → Pending appointment created")]
+    public async Task BookAppointment_ValidData_ReturnsPendingAppointment()
+    {
+        // Arrange
+        var dto = new BookAppointmentDto
+        {
+            DoctorId        = 2,
+            AppointmentDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3)),
+            AppointmentTime = new TimeOnly(10, 0),
+            ReasonForVisit  = "Routine checkup"
+        };
+
+        var created = new AppointmentResponseDto
+        {
+            AppointmentId   = 99,
+            PatientId       = 1,
+            DoctorId        = 2,
+            Status          = "Pending",
+            AppointmentDate = dto.AppointmentDate,
+            AppointmentTime = dto.AppointmentTime,
+            DoctorName      = "Dr. Priya Sharma"
+        };
+
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(5)).ReturnsAsync(_patient);
+        _appointmentRepo.Setup(r => r.BookAppointmentAsync(1, dto))
+                        .ReturnsAsync((99, "Appointment booked successfully"));
+        _appointmentRepo.Setup(r => r.GetAppointmentByIdAsync(99)).ReturnsAsync(created);
+
+        // Act
+        var result = await _sut.BookAppointmentAsync(5, dto);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.AppointmentId.Should().Be(99);
+        result.Data.Status.Should().Be("Pending");
+        result.Data.DoctorName.Should().Be("Dr. Priya Sharma");
+    }
+
+    [Test]
+    [Description("Patient profile not found: repo returns null → BookAppointmentAsync never called")]
+    public async Task BookAppointment_PatientNotFound_ReturnsFail_RepoNotCalled()
+    {
+        // Arrange
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(It.IsAny<int>()))
+                    .ReturnsAsync((PatientResponseDto?)null);
+
+        // Act
+        var result = await _sut.BookAppointmentAsync(99, new BookAppointmentDto
+        {
+            DoctorId        = 1,
+            AppointmentDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            AppointmentTime = new TimeOnly(9, 0)
+        });
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Patient");
+        _appointmentRepo.Verify(r => r.BookAppointmentAsync(
+            It.IsAny<int>(), It.IsAny<BookAppointmentDto>()), Times.Never);
+    }
+
+    [Test]
+    [Description("Doctor slot already taken: SP returns -1 with conflict message")]
+    public async Task BookAppointment_SlotAlreadyTaken_ReturnsFail()
+    {
+        // Arrange
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(5)).ReturnsAsync(_patient);
+        _appointmentRepo.Setup(r => r.BookAppointmentAsync(1, It.IsAny<BookAppointmentDto>()))
+                        .ReturnsAsync((-1, "This time slot is already booked. Please choose another."));
+
+        // Act
+        var result = await _sut.BookAppointmentAsync(5, new BookAppointmentDto
+        {
+            DoctorId        = 2,
+            AppointmentDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            AppointmentTime = new TimeOnly(10, 0)
+        });
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("slot");
+    }
+
+    [Test]
+    [Description("Doctor not available/inactive: SP returns -1 with availability message")]
+    public async Task BookAppointment_DoctorNotAvailable_ReturnsFail()
+    {
+        // Arrange
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(5)).ReturnsAsync(_patient);
+        _appointmentRepo.Setup(r => r.BookAppointmentAsync(1, It.IsAny<BookAppointmentDto>()))
+                        .ReturnsAsync((-1, "Doctor is not currently accepting appointments"));
+
+        // Act
+        var result = await _sut.BookAppointmentAsync(5, new BookAppointmentDto
+        {
+            DoctorId        = 3,
+            AppointmentDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            AppointmentTime = new TimeOnly(11, 0)
+        });
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Doctor");
+    }
+
+    [Test]
+    [Description("Patient already has appointment with same doctor same day: SP rejects")]
+    public async Task BookAppointment_DuplicateSameDoctorSameDay_ReturnsFail()
+    {
+        // Arrange
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(5)).ReturnsAsync(_patient);
+        _appointmentRepo.Setup(r => r.BookAppointmentAsync(1, It.IsAny<BookAppointmentDto>()))
+                        .ReturnsAsync((-1, "You already have an appointment with this doctor on this date"));
+
+        // Act
+        var result = await _sut.BookAppointmentAsync(5, new BookAppointmentDto
+        {
+            DoctorId        = 2,
+            AppointmentDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            AppointmentTime = new TimeOnly(14, 0)
+        });
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("already have an appointment");
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // GET PATIENT APPOINTMENTS
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("No filter: returns all appointments for the patient")]
+    public async Task GetPatientAppointments_NoFilter_ReturnsAll()
+    {
+        // Arrange
+        var list = new List<AppointmentResponseDto>
+        {
+            new() { AppointmentId = 1, Status = "Completed" },
+            new() { AppointmentId = 2, Status = "Pending"   },
+            new() { AppointmentId = 3, Status = "Cancelled" }
+        };
+
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(5)).ReturnsAsync(_patient);
+        _appointmentRepo.Setup(r => r.GetPatientAppointmentsAsync(1, null)).ReturnsAsync(list);
+
+        // Act
+        var result = await _sut.GetPatientAppointmentsAsync(5);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().HaveCount(3);
+    }
+
+    [Test]
+    [Description("Status filter: only Pending appointments returned")]
+    public async Task GetPatientAppointments_FilteredByStatus_ReturnsFiltered()
+    {
+        // Arrange
+        var pending = new List<AppointmentResponseDto>
+        {
+            new() { AppointmentId = 2, Status = "Pending" }
+        };
+
+        _patientRepo.Setup(r => r.GetPatientByUserIdAsync(5)).ReturnsAsync(_patient);
+        _appointmentRepo.Setup(r => r.GetPatientAppointmentsAsync(1, 1)).ReturnsAsync(pending);
+
+        // Act
+        var result = await _sut.GetPatientAppointmentsAsync(5, statusId: 1);
+
+        // Assert
+        result.Data.Should().HaveCount(1);
+        result.Data![0].Status.Should().Be("Pending");
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // CANCEL APPOINTMENT
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Happy path: valid cancellation with reason succeeds")]
+    public async Task CancelAppointment_ValidRequest_ReturnsSuccess()
+    {
+        // Arrange
+        _appointmentRepo
+            .Setup(r => r.CancelAppointmentAsync(10, 5, "Feeling better"))
+            .ReturnsAsync("Appointment cancelled successfully");
+
+        // Act
+        var result = await _sut.CancelAppointmentAsync(
+            10, 5, new CancelAppointmentDto { CancellationReason = "Feeling better" });
+
+        // Assert
+        result.Success.Should().BeTrue();
+        _appointmentRepo.Verify(r => r.CancelAppointmentAsync(10, 5, "Feeling better"), Times.Once);
+    }
+
+    [Test]
+    [Description("Same-day / past-date cancellation: SP rejects with 24-hour rule")]
+    public async Task CancelAppointment_WithinCancellationWindow_ReturnsFail()
+    {
+        // Arrange
+        _appointmentRepo
+            .Setup(r => r.CancelAppointmentAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>()))
+            .ReturnsAsync("Appointments must be cancelled at least 24 hours in advance");
+
+        // Act
+        var result = await _sut.CancelAppointmentAsync(
+            10, 5, new CancelAppointmentDto { CancellationReason = "Changed mind" });
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("24");
+    }
+
+    [Test]
+    [Description("Already cancelled: SP rejects idempotent cancel attempt")]
+    public async Task CancelAppointment_AlreadyCancelled_ReturnsFail()
+    {
+        // Arrange
+        _appointmentRepo
+            .Setup(r => r.CancelAppointmentAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>()))
+            .ReturnsAsync("This appointment is already cancelled");
+
+        // Act
+        var result = await _sut.CancelAppointmentAsync(
+            10, 5, new CancelAppointmentDto { CancellationReason = "Whatever" });
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("already cancelled");
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // UPDATE APPOINTMENT STATUS
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Valid transition Pending → Confirmed succeeds")]
+    public async Task UpdateAppointmentStatus_PendingToConfirmed_ReturnsSuccess()
+    {
+        // Arrange
+        _appointmentRepo
+            .Setup(r => r.UpdateAppointmentStatusAsync(1, "Confirmed", null))
+            .ReturnsAsync("Status updated to Confirmed");
+
+        // Act
+        var result = await _sut.UpdateAppointmentStatusAsync(1,
+            new UpdateAppointmentStatusDto { Status = "Confirmed" });
+
+        // Assert
+        result.Success.Should().BeTrue();
+    }
+
+    [Test]
+    [Description("Terminal state: cannot change a Completed appointment")]
+    public async Task UpdateAppointmentStatus_ChangeCompleted_ReturnsFail()
+    {
+        // Arrange
+        _appointmentRepo
+            .Setup(r => r.UpdateAppointmentStatusAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync("A completed appointment cannot be changed");
+
+        // Act
+        var result = await _sut.UpdateAppointmentStatusAsync(1,
+            new UpdateAppointmentStatusDto { Status = "Pending" });
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("completed");
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // ADD PRESCRIPTION
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Happy path: prescription written for Confirmed appointment")]
+    public async Task AddPrescription_ConfirmedAppointment_ReturnsSuccess()
+    {
+        // Arrange
+        var dto = new AddPrescriptionDto
+        {
+            Diagnosis    = "Hypertension",
+            Medications  = "Amlodipine 5mg — once daily after breakfast",
+            Instructions = "Avoid salty foods. Follow-up in 30 days."
+        };
+
+        _appointmentRepo.Setup(r => r.AddPrescriptionAsync(1, dto))
+                        .ReturnsAsync((5, "Prescription added successfully"));
+
+        // Act
+        var result = await _sut.AddPrescriptionAsync(1, dto);
+
+        // Assert
+        result.Success.Should().BeTrue();
+    }
+
+    [Test]
+    [Description("Appointment is Pending: prescription rejected — must be Confirmed or Completed")]
+    public async Task AddPrescription_PendingAppointment_ReturnsFail()
+    {
+        // Arrange
+        var dto = new AddPrescriptionDto { Diagnosis = "Flu", Medications = "Paracetamol 500mg" };
+
+        _appointmentRepo
+            .Setup(r => r.AddPrescriptionAsync(It.IsAny<int>(), It.IsAny<AddPrescriptionDto>()))
+            .ReturnsAsync((-1, "Prescriptions can only be added to Confirmed or Completed appointments (current: Pending)"));
+
+        // Act
+        var result = await _sut.AddPrescriptionAsync(1, dto);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Confirmed");
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // GET APPOINTMENT BY ID
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Existing appointment ID: returns full appointment details")]
+    public async Task GetAppointmentById_ExistingId_ReturnsAppointment()
+    {
+        // Arrange
+        var expected = new AppointmentResponseDto
+        {
+            AppointmentId   = 42,
+            DoctorName      = "Dr. Rahul Mehta",
+            PatientName     = "Jay Patel",
+            Status          = "Confirmed",
+            AppointmentDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            AppointmentTime = new TimeOnly(11, 30)
+        };
+
+        _appointmentRepo.Setup(r => r.GetAppointmentByIdAsync(42)).ReturnsAsync(expected);
+
+        // Act
+        var result = await _sut.GetAppointmentByIdAsync(42);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.AppointmentId.Should().Be(42);
+        result.Data.Status.Should().Be("Confirmed");
+        result.Data.DoctorName.Should().Be("Dr. Rahul Mehta");
+    }
+
+    [Test]
+    [Description("Non-existing ID: repository returns null → service returns not found")]
+    public async Task GetAppointmentById_NonExistingId_ReturnsFail()
+    {
+        // Arrange
+        _appointmentRepo.Setup(r => r.GetAppointmentByIdAsync(999))
+                        .ReturnsAsync((AppointmentResponseDto?)null);
+
+        // Act
+        var result = await _sut.GetAppointmentByIdAsync(999);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("not found");
+    }
+}

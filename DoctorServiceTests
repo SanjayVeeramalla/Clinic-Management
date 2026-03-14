@@ -1,0 +1,359 @@
+using Moq;
+using NUnit.Framework;
+using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using ClinicManagement.API.DTOs.Appointment;
+using ClinicManagement.API.DTOs.Doctor;
+using ClinicManagement.API.Repositories.Interfaces;
+using ClinicManagement.API.Services;
+
+namespace ClinicManagement.Tests.Services;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DoctorServiceTests  (14 tests)
+// Tests: GetAll, GetById, Create, Update, GetAvailableSlots,
+//        SetSchedule, GetDoctorAppointments
+// ─────────────────────────────────────────────────────────────────────────────
+[TestFixture]
+public class DoctorServiceTests
+{
+    private Mock<IDoctorRepository>      _doctorRepo = null!;
+    private Mock<ILogger<DoctorService>> _logger     = null!;
+    private DoctorService                _sut        = null!;
+
+    // Reusable doctor stub
+    private readonly DoctorResponseDto _doctor = new()
+    {
+        DoctorId          = 1,
+        UserId            = 10,
+        FullName          = "Dr. Priya Sharma",
+        Email             = "priya@clinic.com",
+        Specialization    = "General Medicine",
+        LicenseNumber     = "MH-GM-1001",
+        ConsultationFee   = 500m,
+        IsAvailable       = true,
+        YearsOfExperience = 8
+    };
+
+    [SetUp]
+    public void SetUp()
+    {
+        _doctorRepo = new Mock<IDoctorRepository>();
+        _logger     = new Mock<ILogger<DoctorService>>();
+        _sut = new DoctorService(_doctorRepo.Object, _logger.Object);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // GET ALL DOCTORS
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("No filter: returns all doctors")]
+    public async Task GetAllDoctors_NoFilter_ReturnsAll()
+    {
+        // Arrange
+        _doctorRepo.Setup(r => r.GetAllDoctorsAsync(null, null))
+                   .ReturnsAsync(new List<DoctorResponseDto> { _doctor });
+
+        // Act
+        var result = await _sut.GetAllDoctorsAsync();
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().HaveCount(1);
+        result.Data![0].FullName.Should().Be("Dr. Priya Sharma");
+    }
+
+    [Test]
+    [Description("isAvailable=true filter: returns only available doctors")]
+    public async Task GetAllDoctors_FilterAvailable_ReturnsOnlyAvailable()
+    {
+        // Arrange
+        _doctorRepo.Setup(r => r.GetAllDoctorsAsync(true, null))
+                   .ReturnsAsync(new List<DoctorResponseDto> { _doctor });
+
+        // Act
+        var result = await _sut.GetAllDoctorsAsync(isAvailable: true);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.All(d => d.IsAvailable).Should().BeTrue();
+    }
+
+    [Test]
+    [Description("Specialization filter: returns only doctors of that specialization")]
+    public async Task GetAllDoctors_FilterBySpecialization_ReturnsFiltered()
+    {
+        // Arrange
+        var cardioDoctor = new DoctorResponseDto
+        {
+            DoctorId = 2, FullName = "Dr. Rahul Mehta",
+            Specialization = "Cardiology", IsAvailable = true
+        };
+
+        _doctorRepo.Setup(r => r.GetAllDoctorsAsync(null, 2))
+                   .ReturnsAsync(new List<DoctorResponseDto> { cardioDoctor });
+
+        // Act
+        var result = await _sut.GetAllDoctorsAsync(specializationId: 2);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.All(d => d.Specialization == "Cardiology").Should().BeTrue();
+    }
+
+    [Test]
+    [Description("No doctors registered: returns empty list (not an error)")]
+    public async Task GetAllDoctors_NoneRegistered_ReturnsEmptyList()
+    {
+        // Arrange
+        _doctorRepo.Setup(r => r.GetAllDoctorsAsync(null, null))
+                   .ReturnsAsync(new List<DoctorResponseDto>());
+
+        // Act
+        var result = await _sut.GetAllDoctorsAsync();
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().BeEmpty();
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // GET DOCTOR BY ID
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Existing DoctorId: returns full doctor details")]
+    public async Task GetDoctorById_ExistingId_ReturnsDoctor()
+    {
+        // Arrange
+        _doctorRepo.Setup(r => r.GetDoctorByIdAsync(1)).ReturnsAsync(_doctor);
+
+        // Act
+        var result = await _sut.GetDoctorByIdAsync(1);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.DoctorId.Should().Be(1);
+        result.Data.LicenseNumber.Should().Be("MH-GM-1001");
+        result.Data.ConsultationFee.Should().Be(500m);
+    }
+
+    [Test]
+    [Description("Non-existing DoctorId: repository returns null → not found")]
+    public async Task GetDoctorById_NonExistingId_ReturnsFail()
+    {
+        // Arrange
+        _doctorRepo.Setup(r => r.GetDoctorByIdAsync(999))
+                   .ReturnsAsync((DoctorResponseDto?)null);
+
+        // Act
+        var result = await _sut.GetDoctorByIdAsync(999);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("not found");
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // CREATE DOCTOR
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Happy path: valid DTO → doctor profile created and returned")]
+    public async Task CreateDoctor_ValidData_ReturnsCreatedDoctor()
+    {
+        // Arrange
+        var dto = new CreateDoctorDto
+        {
+            UserId            = 10,
+            SpecializationId  = 1,
+            LicenseNumber     = "MH-GM-9999",
+            YearsOfExperience = 5,
+            ConsultationFee   = 700m
+        };
+
+        _doctorRepo.Setup(r => r.CreateDoctorAsync(dto)).ReturnsAsync((1, "Doctor profile created successfully"));
+        _doctorRepo.Setup(r => r.GetDoctorByIdAsync(1)).ReturnsAsync(_doctor);
+
+        // Act
+        var result = await _sut.CreateDoctorAsync(dto);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().NotBeNull();
+    }
+
+    [Test]
+    [Description("Duplicate license number: SP returns -1 → service surfaces error")]
+    public async Task CreateDoctor_DuplicateLicense_ReturnsFail()
+    {
+        // Arrange
+        var dto = new CreateDoctorDto
+        {
+            UserId           = 11,
+            SpecializationId = 1,
+            LicenseNumber    = "MH-GM-1001", // already exists
+            ConsultationFee  = 500m
+        };
+
+        _doctorRepo.Setup(r => r.CreateDoctorAsync(dto))
+                   .ReturnsAsync((-1, "This license number is already registered"));
+
+        // Act
+        var result = await _sut.CreateDoctorAsync(dto);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("license");
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // UPDATE DOCTOR
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Valid update: specialization + fee change succeeds")]
+    public async Task UpdateDoctor_ValidData_ReturnsSuccess()
+    {
+        // Arrange
+        var dto = new UpdateDoctorDto
+        {
+            SpecializationId  = 2,
+            YearsOfExperience = 10,
+            ConsultationFee   = 900m,
+            IsAvailable       = true
+        };
+
+        _doctorRepo.Setup(r => r.UpdateDoctorAsync(1, dto))
+                   .ReturnsAsync("Doctor updated successfully");
+
+        // Act
+        var result = await _sut.UpdateDoctorAsync(1, dto);
+
+        // Assert
+        result.Success.Should().BeTrue();
+    }
+
+    [Test]
+    [Description("Doctor marked unavailable: future appointments cancelled (message surfaces)")]
+    public async Task UpdateDoctor_SetUnavailable_CancelsFutureAppointments()
+    {
+        // Arrange
+        var dto = new UpdateDoctorDto
+        {
+            SpecializationId  = 1,
+            YearsOfExperience = 8,
+            ConsultationFee   = 500m,
+            IsAvailable       = false // going unavailable
+        };
+
+        _doctorRepo.Setup(r => r.UpdateDoctorAsync(1, dto))
+                   .ReturnsAsync("Doctor marked unavailable. All future pending/confirmed appointments have been cancelled.");
+
+        // Act
+        var result = await _sut.UpdateDoctorAsync(1, dto);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Message.Should().Contain("cancelled");
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // AVAILABLE SLOTS
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Future date with schedule: returns available + booked slots")]
+    public async Task GetAvailableSlots_FutureDate_ReturnsSlots()
+    {
+        // Arrange
+        var date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5));
+        var slots = new AvailableSlotsResponseDto
+        {
+            Date           = date,
+            AvailableSlots = new List<string> { "09:00", "09:30", "10:00", "10:30" },
+            BookedSlots    = new List<string> { "11:00" }
+        };
+
+        _doctorRepo.Setup(r => r.GetAvailableSlotsAsync(1, date)).ReturnsAsync(slots);
+
+        // Act
+        var result = await _sut.GetAvailableSlotsAsync(1, date);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.AvailableSlots.Should().HaveCount(4);
+        result.Data.BookedSlots.Should().HaveCount(1);
+    }
+
+    [Test]
+    [Description("Past date: service rejects before calling repository")]
+    public async Task GetAvailableSlots_PastDate_ReturnsFail_RepoNotCalled()
+    {
+        // Arrange
+        var pastDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+
+        // Act
+        var result = await _sut.GetAvailableSlotsAsync(1, pastDate);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.ToLower().Should().Contain("past");
+        _doctorRepo.Verify(r => r.GetAvailableSlotsAsync(It.IsAny<int>(), It.IsAny<DateOnly>()), Times.Never);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // SET SCHEDULE
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Valid schedule upsert: Monday 09:00–17:00, 30-min slots")]
+    public async Task SetSchedule_ValidData_ReturnsSuccess()
+    {
+        // Arrange
+        var dto = new DoctorScheduleDto
+        {
+            DayOfWeek           = 1, // Monday
+            StartTime           = "09:00",
+            EndTime             = "17:00",
+            SlotDurationMinutes = 30
+        };
+
+        _doctorRepo.Setup(r => r.SetScheduleAsync(1, dto))
+                   .ReturnsAsync("Schedule saved successfully. Existing booked appointments are unaffected.");
+
+        // Act
+        var result = await _sut.SetScheduleAsync(1, dto);
+
+        // Assert
+        result.Success.Should().BeTrue();
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // GET DOCTOR APPOINTMENTS
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Returns all appointments for the doctor across all statuses")]
+    public async Task GetDoctorAppointments_ReturnsAppointmentList()
+    {
+        // Arrange
+        var appointments = new List<AppointmentResponseDto>
+        {
+            new() { AppointmentId = 1, PatientName = "Jay Patel",   Status = "Confirmed" },
+            new() { AppointmentId = 2, PatientName = "Raj Kumar",   Status = "Pending"   },
+            new() { AppointmentId = 3, PatientName = "Meena Singh", Status = "Completed" }
+        };
+
+        _doctorRepo.Setup(r => r.GetDoctorAppointmentsAsync(1, null, null, null))
+                   .ReturnsAsync(appointments);
+
+        // Act
+        var result = await _sut.GetDoctorAppointmentsAsync(1);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().HaveCount(3);
+    }
+}

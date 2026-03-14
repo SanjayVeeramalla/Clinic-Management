@@ -1,11 +1,11 @@
-using ClinicManagementAPI.DTOs.Admin;
-using ClinicManagementAPI.DTOs.Appointment;
-using ClinicManagementAPI.DTOs.Auth;
-using ClinicManagementAPI.DTOs.Doctor;
-using ClinicManagementAPI.DTOs.Patient;
-using ClinicManagementAPI.Helpers;
+using ClinicManagement.API.DTOs.Admin;
+using ClinicManagement.API.DTOs.Appointment;
+using ClinicManagement.API.DTOs.Auth;
+using ClinicManagement.API.DTOs.Doctor;
+using ClinicManagement.API.DTOs.Patient;
+using ClinicManagement.API.Helpers;
 
-namespace ClinicManagementAPI.Services.Interfaces;
+namespace ClinicManagement.API.Services.Interfaces;
 
 public interface IAuthService
 {
@@ -52,4 +52,5 @@ public interface IAdminService
     Task<ApiResponse<List<AppointmentSummaryDto>>> GetAppointmentSummaryReportAsync(ReportRequestDto dto);
     Task<ApiResponse<List<DoctorWorkloadDto>>> GetDoctorWorkloadReportAsync(ReportRequestDto dto);
     Task<ApiResponse> DeactivateUserAsync(int userId);
+    Task<ApiResponse<CreateDoctorAccountResponseDto>> CreateDoctorAccountAsync(CreateDoctorAccountDto dto);
 }

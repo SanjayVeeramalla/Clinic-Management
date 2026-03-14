@@ -2,20 +2,31 @@ using System.ComponentModel.DataAnnotations;
 
 namespace ClinicManagementAPI.DTOs.Doctor;
 
-public class CreateDoctorDto
+public class CreateDoctorAccountDto
 {
-    [Required]
-    public int UserId { get; set; }
-
+    // ── User account fields ──────────────────────────────────
+    [Required, MaxLength(150)]
+    public string FullName { get; set; } = string.Empty;
+ 
+    [Required, EmailAddress, MaxLength(200)]
+    public string Email { get; set; } = string.Empty;
+ 
+    [Required, MinLength(6), MaxLength(100)]
+    public string Password { get; set; } = string.Empty;
+ 
+    [MaxLength(15), RegularExpression(@"^[6-9]\d{9}$", ErrorMessage = "Invalid Indian mobile number")]
+    public string? Phone { get; set; }
+ 
+    // ── Doctor profile fields ─────────────────────────────────
     [Required]
     public int SpecializationId { get; set; }
-
+ 
     [Required, MaxLength(100)]
     public string LicenseNumber { get; set; } = string.Empty;
-
+ 
     [Range(0, 60)]
     public int YearsOfExperience { get; set; }
-
+ 
     [Range(0, 100000)]
     public decimal ConsultationFee { get; set; }
 }

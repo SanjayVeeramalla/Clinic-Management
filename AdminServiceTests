@@ -1,0 +1,257 @@
+using Moq;
+using NUnit.Framework;
+using FluentAssertions;
+using ClinicManagement.API.DTOs.Admin;
+using ClinicManagement.API.DTOs.Appointment;
+using ClinicManagement.API.Repositories.Interfaces;
+using ClinicManagement.API.Services;
+
+namespace ClinicManagement.Tests.Services;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AdminServiceTests  (10 tests)
+// Tests: GetDashboardStats, AppointmentSummaryReport,
+//        DoctorWorkloadReport, DeactivateUser
+// ─────────────────────────────────────────────────────────────────────────────
+[TestFixture]
+public class AdminServiceTests
+{
+    private Mock<IAdminRepository> _adminRepo = null!;
+    private AdminService           _sut       = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        _adminRepo = new Mock<IAdminRepository>();
+        _sut = new AdminService(_adminRepo.Object);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // DASHBOARD STATS
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Happy path: dashboard returns all six stat counters")]
+    public async Task GetDashboardStats_ReturnsAllCounters()
+    {
+        // Arrange
+        var stats = new DashboardStatsDto
+        {
+            TotalPatients          = 45,
+            TotalDoctors           = 10,
+            TotalAppointments      = 200,
+            TodayAppointments      = 12,
+            PendingAppointments    = 18,
+            CompletedAppointments  = 160
+        };
+
+        _adminRepo.Setup(r => r.GetDashboardStatsAsync()).ReturnsAsync(stats);
+
+        // Act
+        var result = await _sut.GetDashboardStatsAsync();
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.TotalPatients.Should().Be(45);
+        result.Data.TotalDoctors.Should().Be(10);
+        result.Data.TodayAppointments.Should().Be(12);
+        result.Data.PendingAppointments.Should().Be(18);
+    }
+
+    [Test]
+    [Description("Fresh database: all stats are zero — still a successful response")]
+    public async Task GetDashboardStats_EmptyDatabase_ReturnsZeroCounts()
+    {
+        // Arrange
+        _adminRepo.Setup(r => r.GetDashboardStatsAsync())
+                  .ReturnsAsync(new DashboardStatsDto());
+
+        // Act
+        var result = await _sut.GetDashboardStatsAsync();
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.TotalPatients.Should().Be(0);
+        result.Data.TotalDoctors.Should().Be(0);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // APPOINTMENT SUMMARY REPORT
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Valid date range: returns appointment counts by status with percentages")]
+    public async Task GetAppointmentSummaryReport_ValidRange_ReturnsStatusBreakdown()
+    {
+        // Arrange
+        var from = new DateOnly(2026, 1, 1);
+        var to   = new DateOnly(2026, 3, 31);
+
+        var summary = new List<AppointmentSummaryDto>
+        {
+            new() { Status = "Completed",  Count = 80, Percentage = 53.3m },
+            new() { Status = "Cancelled",  Count = 30, Percentage = 20.0m },
+            new() { Status = "Pending",    Count = 20, Percentage = 13.3m },
+            new() { Status = "Confirmed",  Count = 15, Percentage =  10.0m },
+            new() { Status = "NoShow",     Count =  5, Percentage =   3.4m },
+        };
+
+        _adminRepo.Setup(r => r.GetAppointmentSummaryReportAsync(from, to)).ReturnsAsync(summary);
+
+        // Act
+        var result = await _sut.GetAppointmentSummaryReportAsync(
+            new ReportRequestDto { FromDate = from, ToDate = to });
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().HaveCount(5);
+        result.Data!.Sum(s => s.Count).Should().Be(150);
+        result.Data.First().Status.Should().Be("Completed");
+    }
+
+    [Test]
+    [Description("FromDate > ToDate: service rejects before calling repository")]
+    public async Task GetAppointmentSummaryReport_FromAfterTo_ReturnsFail_RepoNotCalled()
+    {
+        // Arrange
+        var dto = new ReportRequestDto
+        {
+            FromDate = new DateOnly(2026, 3, 31),
+            ToDate   = new DateOnly(2026, 1, 1)  // before FromDate
+        };
+
+        // Act
+        var result = await _sut.GetAppointmentSummaryReportAsync(dto);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("FromDate");
+        _adminRepo.Verify(r => r.GetAppointmentSummaryReportAsync(
+            It.IsAny<DateOnly>(), It.IsAny<DateOnly>()), Times.Never);
+    }
+
+    [Test]
+    [Description("Date range with no appointments: returns empty list (not an error)")]
+    public async Task GetAppointmentSummaryReport_NoData_ReturnsEmptyList()
+    {
+        // Arrange
+        var from = new DateOnly(2020, 1, 1);
+        var to   = new DateOnly(2020, 1, 31);
+
+        _adminRepo.Setup(r => r.GetAppointmentSummaryReportAsync(from, to))
+                  .ReturnsAsync(new List<AppointmentSummaryDto>());
+
+        // Act
+        var result = await _sut.GetAppointmentSummaryReportAsync(
+            new ReportRequestDto { FromDate = from, ToDate = to });
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().BeEmpty();
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // DOCTOR WORKLOAD REPORT
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Valid date range: returns workload breakdown per doctor")]
+    public async Task GetDoctorWorkloadReport_ValidRange_ReturnsWorkloadPerDoctor()
+    {
+        // Arrange
+        var from = new DateOnly(2026, 1, 1);
+        var to   = new DateOnly(2026, 3, 31);
+
+        var workload = new List<DoctorWorkloadDto>
+        {
+            new() { DoctorId = 1, DoctorName = "Dr. Priya Sharma",  Specialization = "General Medicine", TotalAppointments = 60, Completed = 50, Cancelled = 5, Pending = 5  },
+            new() { DoctorId = 2, DoctorName = "Dr. Rahul Mehta",   Specialization = "Cardiology",        TotalAppointments = 40, Completed = 30, Cancelled = 5, Pending = 5  },
+            new() { DoctorId = 7, DoctorName = "Dr. Meera Iyer",    Specialization = "Neurology",         TotalAppointments = 20, Completed = 18, Cancelled = 1, Pending = 1  },
+        };
+
+        _adminRepo.Setup(r => r.GetDoctorWorkloadReportAsync(from, to)).ReturnsAsync(workload);
+
+        // Act
+        var result = await _sut.GetDoctorWorkloadReportAsync(
+            new ReportRequestDto { FromDate = from, ToDate = to });
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data.Should().HaveCount(3);
+        result.Data![0].DoctorName.Should().Be("Dr. Priya Sharma");
+        result.Data[0].TotalAppointments.Should().Be(60);
+    }
+
+    [Test]
+    [Description("FromDate > ToDate: service rejects before calling repository")]
+    public async Task GetDoctorWorkloadReport_InvalidDateRange_ReturnsFail_RepoNotCalled()
+    {
+        // Arrange
+        var dto = new ReportRequestDto
+        {
+            FromDate = new DateOnly(2026, 6, 1),
+            ToDate   = new DateOnly(2026, 1, 1)
+        };
+
+        // Act
+        var result = await _sut.GetDoctorWorkloadReportAsync(dto);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("FromDate");
+        _adminRepo.Verify(r => r.GetDoctorWorkloadReportAsync(
+            It.IsAny<DateOnly>(), It.IsAny<DateOnly>()), Times.Never);
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // DEACTIVATE USER
+    // ═════════════════════════════════════════════════════════
+
+    [Test]
+    [Description("Happy path: doctor deactivated, future appointments cancelled")]
+    public async Task DeactivateUser_Doctor_ReturnsSuccess_WithCancellationMessage()
+    {
+        // Arrange
+        _adminRepo.Setup(r => r.DeactivateUserAsync(10))
+                  .ReturnsAsync("Doctor account deactivated. Sessions revoked. Future appointments cancelled.");
+
+        // Act
+        var result = await _sut.DeactivateUserAsync(10);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        _adminRepo.Verify(r => r.DeactivateUserAsync(10), Times.Once);
+    }
+
+    [Test]
+    [Description("Cannot deactivate Admin: SP returns error message, service returns fail")]
+    public async Task DeactivateUser_AdminAccount_ReturnsFail()
+    {
+        // Arrange
+        _adminRepo.Setup(r => r.DeactivateUserAsync(1))
+                  .ReturnsAsync("Admin accounts cannot be deactivated");
+
+        // Act
+        var result = await _sut.DeactivateUserAsync(1);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Admin");
+    }
+
+    [Test]
+    [Description("User not found: SP returns not found message, service returns fail")]
+    public async Task DeactivateUser_UserNotFound_ReturnsFail()
+    {
+        // Arrange
+        _adminRepo.Setup(r => r.DeactivateUserAsync(9999))
+                  .ReturnsAsync("User not found");
+
+        // Act
+        var result = await _sut.DeactivateUserAsync(9999);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("not found");
+    }
+}

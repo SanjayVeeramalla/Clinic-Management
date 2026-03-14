@@ -1,0 +1,466 @@
+Commit Sequence — Clinic Management System
+
+Phase 1 — Repository Initialization
+Step 1 — Initialize repository
+git init
+git add .gitignore
+git commit -m "chore: initialize git repository with .gitignore"
+▶ Very first commit — empty project with .gitignore covering bin, obj, node_modules
+Step 2 — Add NuGet packages
+git add Backend/ClinicManagement.API/ClinicManagement.API.csproj
+git commit -m "chore(config): add NuGet packages for EF Core, JWT, BCrypt, Serilog, and Swagger"
+▶ After updating .csproj with all required packages
+Step 3 — Configure app settings
+git add Backend/ClinicManagement.API/appsettings.json
+git add Backend/ClinicManagement.API/Properties/launchSettings.json
+git commit -m "chore(config): configure appsettings with JWT settings, connection string, and CORS origins"
+▶ After filling appsettings.json with DB connection, JWT config, and launchSettings with port
+
+Phase 2 — Database
+Step 4 — Schema and seed data
+git add Database/01_CreateDatabase.sql
+git commit -m "feat(db): add relational schema with 11 tables and seed data
+
+Creates tables: Roles, Users, RefreshTokens, Specializations, Doctors,
+Patients, DoctorSchedules, AppointmentStatuses, Appointments,
+Prescriptions, AuditLogs.
+Seeds roles, appointment statuses, specializations, and admin user.
+Includes indexes on Email, AppointmentDate, DoctorId, PatientId."
+▶ After writing all CREATE TABLE statements and seed inserts
+Step 5 — Auth stored procedures
+git add Database/02_StoredProcedures.sql
+git commit -m "feat(db): add stored procedures for user registration and token management
+
+- sp_RegisterUser: creates Patient account only, no role param accepted
+- sp_GetUserByEmail: returns all User entity columns for EF Core mapping
+- sp_GetUserById: full User row lookup by primary key
+- sp_SaveRefreshToken: revokes all previous tokens before inserting new one
+- sp_GetRefreshToken: returns RefreshToken entity columns only
+- sp_RevokeRefreshToken: marks token as revoked on logout"
+▶ After writing all 6 auth stored procedures
+Step 6 — Doctor stored procedures
+git add Database/02_StoredProcedures.sql
+git commit -m "feat(db): add stored procedures for doctor management
+
+- sp_CreateDoctorAccount: creates User + Doctor profile in one transaction (admin only)
+- sp_GetAllDoctors: filters by availability and specialization
+- sp_GetDoctorById, sp_GetDoctorByUserId: single doctor lookup
+- sp_UpdateDoctor: marks unavailable and auto-cancels future appointments
+- sp_SetDoctorSchedule: upsert with window and slot duration validation
+- sp_GetDoctorAvailableSlots: excludes past dates and unavailable doctors
+- sp_GetDoctorAppointments: filterable by date range and status"
+▶ After writing all 7 doctor stored procedures
+Step 7 — Patient stored procedures
+git add Database/02_StoredProcedures.sql
+git commit -m "feat(db): add stored procedures for patient profile management
+
+- sp_CreatePatient: auto-called after registration, prevents duplicate profile
+- sp_GetPatientByUserId, sp_GetPatientById: profile lookups
+- sp_UpdatePatientProfile: validates date of birth range
+- sp_GetAllPatients: supports name and email search for admin"
+▶ After writing all 5 patient stored procedures
+Step 8 — Appointment stored procedures with edge cases
+git add Database/02_StoredProcedures.sql
+git commit -m "feat(db): add stored procedures for appointment booking with real-world edge cases
+
+sp_BookAppointment enforces 11 checks:
+- Past date and same-day past-time prevention
+- 90-day advance booking limit
+- Doctor availability and active account check
+- Slot conflict detection for doctor and patient
+- One appointment per patient per day per doctor
+- Schedule day-of-week validation
+- Time window and slot boundary alignment checks
+
+sp_GetPatientAppointments, sp_GetAppointmentById with full joins"
+▶ The most important SP — handles all booking edge cases
+Step 9 — Cancel, status, and prescription stored procedures
+git add Database/02_StoredProcedures.sql
+git commit -m "feat(db): add stored procedures for cancellation, status workflow, and prescriptions
+
+- sp_CancelAppointment: role-aware, 24-hour notice for patients, terminal state guards
+- sp_UpdateAppointmentStatus: enforces transition graph
+  Pending->Confirmed|Cancelled|NoShow, Confirmed->Completed|Cancelled|NoShow
+- sp_AddPrescription: upsert, status guard, follow-up date validation, ownership check"
+▶ After writing the final appointment and prescription stored procedures
+Step 10 — Admin stored procedures
+git add Database/02_StoredProcedures.sql
+git commit -m "feat(db): add stored procedures for admin dashboard, reports, and user deactivation
+
+- sp_GetDashboardStats: six live counters via subqueries
+- sp_GetAppointmentSummaryReport: status breakdown with percentages
+- sp_GetDoctorWorkloadReport: per-doctor totals with NoShow column
+- sp_DeactivateUser: admin guard, token revocation, cascade appointment cancel"
+▶ After writing all 4 admin stored procedures
+Step 11 — Sample data
+git add Database/03_SampleData_Doctors.sql
+git commit -m "feat(db): add sample data with 10 doctors across all 8 specializations
+
+Includes varied schedules: morning clinic, evening clinic, Saturday sessions,
+specialist-only days. Slot durations range from 30 to 60 minutes."
+▶ After writing sample doctor inserts with schedules
+
+Phase 3 — Core Backend Infrastructure
+Step 12 — Domain models
+git add Backend/ClinicManagement.API/Models/DomainModels.cs
+git commit -m "feat(models): add domain models for all 11 database entities
+
+Includes navigation properties and EF Core column type annotations.
+DateOnly and TimeOnly used for AppointmentDate and AppointmentTime."
+▶ After writing DomainModels.cs
+Step 13 — DTOs
+git add Backend/ClinicManagement.API/DTOs/Auth/AuthDtos.cs
+git add Backend/ClinicManagement.API/DTOs/Doctor/DoctorDtos.cs
+git add Backend/ClinicManagement.API/DTOs/SharedDtos.cs
+git commit -m "feat(dto): add request and response DTOs with validation annotations
+
+RegisterRequestDto has no Role field — public registration creates Patient only.
+CreateDoctorAccountDto combines User and Doctor fields for admin one-step creation.
+Validation includes EmailAddress, RegularExpression for Indian mobile numbers,
+MinLength for passwords, and Range for fees and experience."
+▶ After writing all DTO files
+Step 14 — EF Core DbContext
+git add Backend/ClinicManagement.API/Data/ClinicDbContext.cs
+git commit -m "feat(data): add EF Core DbContext with all 11 DbSets and Fluent API configuration
+
+Used as connection layer for stored procedure calls via FromSqlRaw
+and ExecuteSqlRawAsync. Does not manage schema — database created via SQL scripts."
+▶ After writing ClinicDbContext.cs
+Step 15 — Helpers
+git add Backend/ClinicManagement.API/Helpers/JwtHelper.cs
+git add Backend/ClinicManagement.API/Helpers/ApiResponse.cs
+git commit -m "feat(helpers): add JWT token generation and generic ApiResponse wrapper
+
+JwtHelper generates HMAC-SHA256 signed tokens with UserId, Email, Role claims.
+ApiResponse<T> provides consistent Ok/Fail factory methods for all endpoints."
+▶ After writing JwtHelper.cs and ApiResponse.cs
+Step 16 — Middleware
+git add Backend/ClinicManagement.API/Middleware/ExceptionMiddleware.cs
+git add Backend/ClinicManagement.API/Middleware/RequestLoggingMiddleware.cs
+git commit -m "feat(middleware): add global exception handling and request logging middleware
+
+ExceptionMiddleware catches all unhandled exceptions, returns consistent JSON.
+RequestLoggingMiddleware logs method, path, IP, status code, and elapsed ms via Serilog."
+▶ After writing both middleware files
+Step 17 — Filters
+git add Backend/ClinicManagement.API/Filters/ValidationFilter.cs
+git commit -m "feat(filters): add action filter for unified ModelState validation response
+
+Returns ApiResponse with all field errors on invalid ModelState,
+suppresses default ASP.NET Core 400 auto-response."
+▶ After writing ValidationFilter.cs
+
+Phase 4 — Repositories
+Step 18 — Repository interfaces
+git add Backend/ClinicManagement.API/Repositories/Interfaces/IRepositories.cs
+git commit -m "feat(repositories): add interfaces for all five repositories
+
+IAuthRepository, IDoctorRepository, IPatientRepository,
+IAppointmentRepository, IAdminRepository.
+RegisterUserAsync takes no role parameter — SP handles Patient role internally."
+▶ After writing IRepositories.cs
+Step 19 — Auth repository
+git add Backend/ClinicManagement.API/Repositories/AuthRepository.cs
+git commit -m "feat(auth): add AuthRepository with EF Core stored procedure pattern
+
+FromSqlRaw used for entity mapping — SPs return all entity columns with no JOINs.
+RoleName loaded separately via LINQ after SP call to satisfy EF mapping rules.
+RefreshToken entity loaded via SP, User loaded separately for navigation property."
+▶ After writing AuthRepository.cs
+Step 20 — Doctor repository
+git add Backend/ClinicManagement.API/Repositories/DoctorRepository.cs
+git commit -m "feat(doctors): add DoctorRepository with stored procedure calls and slot calculation
+
+GetAvailableSlotsAsync computes free slots from schedule window minus booked times.
+All doctor queries use FromSqlRaw with full entity column projection."
+▶ After writing DoctorRepository.cs
+Step 21 — Patient and appointment repositories
+git add Backend/ClinicManagement.API/Repositories/PatientAppointmentRepositories.cs
+git commit -m "feat(patients): add PatientRepository and AppointmentRepository
+
+PatientRepository handles profile CRUD via stored procedures.
+AppointmentRepository manages booking, cancellation, status updates,
+and prescription upsert via ExecuteSqlRawAsync with OUTPUT parameters."
+▶ After writing PatientAppointmentRepositories.cs
+Step 22 — Admin repository
+git add Backend/ClinicManagement.API/Repositories/AdminRepository.cs
+git commit -m "feat(admin): add AdminRepository with dashboard stats and report queries
+
+GetDashboardStatsAsync uses EF Core LINQ for live counts.
+Report methods use SqlQueryRaw<T> for SP result projection into summary DTOs.
+CreateDoctorAccountAsync calls sp_CreateDoctorAccount with OUTPUT parameters."
+▶ After writing AdminRepository.cs
+
+Phase 5 — Services
+Step 23 — Service interfaces
+git add Backend/ClinicManagement.API/Services/Interfaces/IServices.cs
+git commit -m "feat(services): add interfaces for all five service classes"
+▶ After writing IServices.cs
+Step 24 — Auth service
+git add Backend/ClinicManagement.API/Services/AllServices.cs
+git commit -m "feat(auth): add AuthService with BCrypt hashing and JWT token issuance
+
+RegisterAsync hardcodes Patient role — no role accepted from client.
+LoginAsync returns identical error for wrong email and wrong password to prevent enumeration.
+RefreshTokenAsync revokes old token and issues new pair."
+▶ After writing AuthService in AllServices.cs
+Step 25 — Doctor and patient services
+git add Backend/ClinicManagement.API/Services/AllServices.cs
+git commit -m "feat(services): add DoctorService and PatientService
+
+DoctorService validates past date before calling slot repository.
+PatientService resolves PatientId from UserId before all profile operations."
+▶ After writing DoctorService and PatientService
+Step 26 — Appointment and admin services
+git add Backend/ClinicManagement.API/Services/AllServices.cs
+git commit -m "feat(services): add AppointmentService and AdminService
+
+AppointmentService resolves PatientId before booking and delegates all
+edge case validation to stored procedures.
+AdminService validates date range before calling report repository.
+CreateDoctorAccountAsync hashes password before calling repository."
+▶ After writing AppointmentService and AdminService
+
+Phase 6 — Controllers
+Step 27 — Auth controller
+git add Backend/ClinicManagement.API/Controllers/AuthController.cs
+git commit -m "feat(auth): add register and login endpoints with JWT token response
+
+POST /api/auth/register creates Patient account only, no role field accepted.
+POST /api/auth/login returns access token and refresh token.
+POST /api/auth/refresh-token rotates token pair.
+POST /api/auth/logout revokes refresh token."
+▶ After writing AuthController.cs
+Step 28 — Doctor controller
+git add Backend/ClinicManagement.API/Controllers/DoctorController.cs
+git commit -m "feat(doctors): add doctor endpoints for profile, slots, schedule, and appointments
+
+GET /api/doctor and /api/doctor/{id} are public.
+GET /api/doctor/{id}/available-slots requires authentication.
+Schedule and status update endpoints require Doctor or Admin role.
+Prescription endpoint restricted to Doctor role only."
+▶ After writing DoctorController.cs
+Step 29 — Patient controller
+git add Backend/ClinicManagement.API/Controllers/PatientController.cs
+git commit -m "feat(patients): add patient endpoints for profile and appointment management
+
+Profile endpoints read UserId from JWT claims — no ID in route.
+Book, view, and cancel appointment endpoints scoped to authenticated patient."
+▶ After writing PatientController.cs
+Step 30 — Admin controller
+git add Backend/ClinicManagement.API/Controllers/AdminController.cs
+git commit -m "feat(admin): add admin endpoints for dashboard, doctor creation, and reports
+
+POST /api/admin/doctors/create-account creates full doctor account in one step.
+All endpoints require Admin role.
+Report endpoints accept date range via request body."
+▶ After writing AdminController.cs
+Step 31 — Specializations controller
+git add Backend/ClinicManagement.API/Controllers/SpecializationsController.cs
+git commit -m "feat(specializations): add public endpoint to list all specializations"
+▶ After writing SpecializationsController.cs
+
+Phase 7 — Program.cs and DI Wiring
+Step 32 — Program.cs
+git add Backend/ClinicManagement.API/Program.cs
+git commit -m "feat(config): wire DI, JWT auth, CORS, Swagger, Serilog, and middleware in Program.cs
+
+Registers all repositories and services as Scoped, JwtHelper as Singleton.
+JWT Bearer configured with zero clock skew and custom JSON challenge response.
+Swagger includes Bearer security definition.
+Exception and request logging middleware registered in pipeline."
+▶ After completing Program.cs
+
+Phase 8 — Unit Tests
+Step 33 — Test project setup
+git add Backend/ClinicManagement.Tests/ClinicManagement.Tests.csproj
+git commit -m "chore(tests): add NUnit test project with Moq and FluentAssertions
+
+References API project. Packages: NUnit 4.1, NUnit3TestAdapter, Moq 4.20,
+FluentAssertions 6.12, BCrypt.Net-Next, Microsoft.Extensions.Configuration.Memory."
+▶ After creating the test .csproj
+Step 34 — Auth service tests
+git add Backend/ClinicManagement.Tests/Services/AuthServiceTests.cs
+git commit -m "test(auth): add 11 unit tests for AuthService
+
+Covers: patient registration, duplicate email, password hashing verification,
+role always hardcoded to Patient, login happy path, wrong password,
+non-existent email, refresh token valid/expired/revoked/notfound, logout."
+▶ After writing AuthServiceTests.cs
+Step 35 — Appointment service tests
+git add Backend/ClinicManagement.Tests/Services/AppointmentServiceTests.cs
+git commit -m "test(appointments): add 14 unit tests for AppointmentService
+
+Covers: booking happy path, patient not found, slot taken, doctor unavailable,
+same-day duplicate booking, get all and filtered, cancel valid and within window,
+already cancelled, status transitions, add prescription, get by ID."
+▶ After writing AppointmentServiceTests.cs
+Step 36 — Doctor service tests
+git add Backend/ClinicManagement.Tests/Services/DoctorServiceTests.cs
+git commit -m "test(doctors): add 14 unit tests for DoctorService
+
+Covers: get all with filters, get by ID, create with duplicate license,
+update including set-unavailable cascade, available slots past date guard,
+set schedule, get doctor appointments."
+▶ After writing DoctorServiceTests.cs
+Step 37 — Patient service tests
+git add Backend/ClinicManagement.Tests/Services/PatientServiceTests.cs
+git commit -m "test(patients): add 10 unit tests for PatientService
+
+Covers: get profile found and not found, update profile and not found guard,
+get all patients with and without search, empty search result, get by ID."
+▶ After writing PatientServiceTests.cs
+Step 38 — Admin service tests
+git add Backend/ClinicManagement.Tests/Services/AdminServiceTests.cs
+git commit -m "test(admin): add 10 unit tests for AdminService
+
+Covers: dashboard stats normal and empty, appointment summary valid range,
+invalid date range rejected before repo call, no data, doctor workload,
+deactivate doctor, admin guard, user not found."
+▶ After writing AdminServiceTests.cs
+
+Phase 9 — Frontend
+Step 39 — Vite project setup
+git add Frontend/clinic-frontend/package.json
+git add Frontend/clinic-frontend/vite.config.js
+git add Frontend/clinic-frontend/index.html
+git add Frontend/clinic-frontend/.env
+git add Frontend/clinic-frontend/.gitignore
+git commit -m "chore(frontend): initialize React 18 project with Vite and configure dev proxy
+
+Replaces Create React App. Dev server on port 3000 with proxy to backend at 5000.
+Dependencies: React Router 6, Axios, react-hot-toast, lucide-react."
+▶ After creating all Vite config files
+Step 40 — Global styles
+git add Frontend/clinic-frontend/src/index.css
+git add Frontend/clinic-frontend/src/App.css
+git commit -m "feat(frontend): add global styles and component design system
+
+Covers navbar, auth cards, form groups, buttons, badges, stat cards,
+appointment cards, slot picker, schedule grid, modals, tables, and empty states."
+▶ After writing App.css and index.css
+Step 41 — Axios service layer
+git add Frontend/clinic-frontend/src/services/api.js
+git commit -m "feat(frontend): add Axios instance with JWT interceptors and all API methods
+
+Request interceptor attaches Bearer token from localStorage.
+Response interceptor auto-refreshes on 401 and redirects to login on failure.
+Exports authAPI, doctorAPI, patientAPI, adminAPI, specializationsAPI."
+▶ After writing api.js
+Step 42 — Auth context
+git add Frontend/clinic-frontend/src/context/AuthContext.js
+git commit -m "feat(frontend): add AuthContext with login, register, and logout state management
+
+Rehydrates user from localStorage on app start.
+login() and register() store access token, refresh token, and user object.
+logout() calls revoke endpoint and clears localStorage."
+▶ After writing AuthContext.js
+Step 43 — App routing and shared components
+git add Frontend/clinic-frontend/src/main.jsx
+git add Frontend/clinic-frontend/src/App.jsx
+git add Frontend/clinic-frontend/src/components/Shared/ProtectedRoute.jsx
+git add Frontend/clinic-frontend/src/components/Shared/Navbar.jsx
+git commit -m "feat(frontend): add app routing with role-based protected routes and shared navbar
+
+ProtectedRoute redirects unauthenticated users to login and wrong-role users to unauthorized.
+Navbar renders role-specific links for Patient, Doctor, and Admin."
+▶ After writing main.jsx, App.jsx, ProtectedRoute.jsx, and Navbar.jsx
+Step 44 — Auth pages
+git add Frontend/clinic-frontend/src/components/Auth/Login.jsx
+git add Frontend/clinic-frontend/src/components/Auth/Register.jsx
+git commit -m "feat(frontend): add login and register pages
+
+Register creates Patient account only — no role selector shown.
+Info notice displayed explaining doctors are created by admin.
+Login redirects to role-specific dashboard after authentication."
+▶ After writing Login.jsx and Register.jsx
+Step 45 — Patient pages
+git add Frontend/clinic-frontend/src/components/Patient/PatientDashboard.jsx
+git add Frontend/clinic-frontend/src/components/Patient/BookAppointment.jsx
+git add Frontend/clinic-frontend/src/components/Patient/MyAppointments.jsx
+git add Frontend/clinic-frontend/src/components/Patient/PatientProfile.jsx
+git commit -m "feat(frontend): add patient dashboard, booking flow, appointments, and profile
+
+BookAppointment is a 4-step flow: specialization, doctor, date, slot.
+Available slots fetched dynamically when doctor and date are selected.
+MyAppointments has tab filters and cancel modal with 24-hour rule messaging."
+▶ After writing all 4 patient components
+Step 46 — Doctor pages
+git add Frontend/clinic-frontend/src/components/Doctor/DoctorDashboard.jsx
+git add Frontend/clinic-frontend/src/components/Doctor/DoctorAppointments.jsx
+git add Frontend/clinic-frontend/src/components/Doctor/DoctorSchedule.jsx
+git add Frontend/clinic-frontend/src/components/Doctor/PrescriptionForm.jsx
+git commit -m "feat(frontend): add doctor dashboard, appointments, schedule manager, and prescription form
+
+Dashboard shows today's appointments with Confirm, Complete, and Prescribe actions.
+Schedule manager allows setting working hours and slot duration per day of week.
+Prescription form supports diagnosis, medications, instructions, and follow-up date."
+▶ After writing all 4 doctor components
+Step 47 — Admin pages
+git add Frontend/clinic-frontend/src/components/Admin/AdminDashboard.jsx
+git add Frontend/clinic-frontend/src/components/Admin/ManageDoctors.jsx
+git add Frontend/clinic-frontend/src/components/Admin/ManagePatients.jsx
+git add Frontend/clinic-frontend/src/components/Admin/Reports.jsx
+git commit -m "feat(frontend): add admin dashboard, doctor management, patient search, and reports
+
+ManageDoctors has Create Doctor Account modal combining user and doctor fields in one form.
+ManagePatients supports name and email search with patient detail modal.
+Reports page has appointment summary with bar chart and doctor workload table."
+▶ After writing all 4 admin components
+
+Phase 10 — Bug Fixes
+git commit -m "fix(auth): surface correct error message for duplicate email on registration"
+
+git commit -m "fix(frontend): redirect to patient dashboard after register, not role-based split"
+
+git commit -m "fix(db): remove @RoleName parameter from sp_RegisterUser, role hardcoded internally"
+
+git commit -m "fix(repositories): pass role as separate param removed from RegisterUserAsync signature"
+
+git commit -m "fix(efcore): load RoleName via separate LINQ query after FromSqlRaw to satisfy entity mapping"
+
+git commit -m "fix(frontend): replace npm start script with dev in package.json for Vite compatibility"
+▶ One commit per fix — never bundle multiple fixes together
+
+Phase 11 — Final Polish
+git commit -m "refactor(repositories): simplify RegisterAsync by removing redundant DTO re-creation"
+
+git commit -m "refactor(admin): replace two-step doctor creation flow with single CreateDoctorAccount endpoint"
+
+git commit -m "style: remove unused using statements and fix indentation across all controllers"
+
+git commit -m "docs: add Postman collection with all endpoints and auto token capture scripts"
+
+git commit -m "chore: add README with setup instructions, run order for SQL scripts, and API reference"
+
+Final Release Tag
+git tag -a v1.0.0 -m "feat!: initial release of Clinic Management System v1.0.0
+
+Features:
+- JWT authentication with refresh token rotation
+- Patient self-registration, doctor accounts created by admin only
+- Role-based access control: Admin, Doctor, Patient
+- Doctor schedule management with slot boundary validation
+- Appointment booking with 11 real-world edge case checks
+- Status workflow: Pending->Confirmed->Completed with NoShow and Cancelled
+- Prescription management with doctor ownership enforcement
+- Admin dashboard with live stats and date-range reports
+- Doctor deactivation with cascade appointment cancellation and token revocation
+- EF Core with stored procedures — database-first, schema owned by SQL scripts
+- NUnit unit tests: 59 tests across 5 service classes using Moq and FluentAssertions
+- React 18 Vite frontend with role-based routing and JWT auto-refresh"
+
+Branch Workflow
+bashgit init
+git remote add origin <your-repo-url>
+git checkout -b dev
+git checkout -b Sanjay_ClinicManagement
+
+# After each step
+git add <specific-file>
+git commit -m "feat(scope): description"
+git push origin Sanjay_ClinicManagement
+
+Type and Scope Reference
+TypeWhen to usefeatNew feature or endpointfixBug fixchoreConfig, packages, toolingtestAdding or updating testsrefactorCode restructure, no behavior changedocsREADME, comments, diagramsstyleFormatting, indentation only
+ScopeCoversauthLogin, register, JWT, refreshdoctorsDoctor CRUD, slots, schedulepatientsPatient profile, appointmentsadminDashboard, reports, deactivatedbSQL scripts, stored proceduresfrontendAll React componentsrepositoriesData access layerservicesBusiness logic layerconfigProgram.cs, appsettingsmiddlewareException, logging
